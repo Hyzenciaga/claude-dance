@@ -21,6 +21,7 @@ export function Composer({ cwdLocked, initialCwd, onSubmit, disabled }: Props) {
   const [cwd, setCwd] = useState(defaultCwd)
   const [text, setText] = useState('')
   const taRef = useRef<HTMLTextAreaElement>(null)
+  const composingRef = useRef(false)
 
   useEffect(() => {
     if (!cwdLocked) setCwd(defaultCwd)
@@ -56,11 +57,29 @@ export function Composer({ cwdLocked, initialCwd, onSubmit, disabled }: Props) {
           ref={taRef}
           value={text}
           onChange={(e) => setText(e.target.value)}
+          onCompositionStart={() => { composingRef.current = true }}
+          onCompositionEnd={() => {
+            // Stay "composing" for one tick so the Enter that commits IME
+            // doesn't immediately trigger submit on browsers that fire
+            // keydown after compositionend.
+            requestAnimationFrame(() => { composingRef.current = false })
+          }}
           onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault()
-              submit()
+            // Native IME path: most browsers report keyCode 229 while composing.
+            // Belt-and-suspenders: also check React's nativeEvent.isComposing
+            // and our composingRef flag.
+            if (e.key !== 'Enter') return
+            if (e.shiftKey) return
+            const native = e.nativeEvent as KeyboardEvent
+            if (
+              composingRef.current ||
+              native.isComposing ||
+              native.keyCode === 229
+            ) {
+              return
             }
+            e.preventDefault()
+            submit()
           }}
           disabled={disabled}
           rows={1}

@@ -24,11 +24,9 @@ function createWindow() {
     height: 820,
     minWidth: 760,
     minHeight: 480,
-    backgroundColor: '#0d0d0e',
+    backgroundColor: '#fbfbfa',
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 14, y: 14 },
-    vibrancy: 'sidebar',
-    visualEffectState: 'active',
     webPreferences: {
       preload: resolve(__dirname, '../preload/preload.js'),
       contextIsolation: true,
