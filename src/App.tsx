@@ -1,5 +1,8 @@
-import { useEffect, useState } from 'react'
-import { MessageSquarePlus, PanelRightOpen, PanelRightClose } from 'lucide-react'
+import { useEffect, useState, useRef, useLayoutEffect } from 'react'
+import {
+  PanelRightOpen, PanelRightClose,
+  Plus, ArrowUp, Paperclip, Code2, Gauge, ChevronDown, Check,
+} from 'lucide-react'
 import { Sidebar } from './components/Sidebar'
 import { ChatView } from './components/ChatView'
 import { Composer } from './components/Composer'
@@ -8,6 +11,7 @@ import { SettingsPage } from './components/SettingsPage'
 import { useChats } from './store/chats'
 import { useEvents } from './store/events'
 import { useNotes } from './store/notes'
+import { useProjects } from './store/projects'
 import { useSessions } from './store/sessions'
 import type { SessionSummary } from '@shared/types'
 
@@ -132,21 +136,14 @@ export default function App() {
           )}
         </div>
 
-        {view.mode === 'empty' && <EmptyState onNewChat={() => newChat()} />}
-
-        {view.mode === 'newChat' && !view.channelId && (
-          <>
-            <div className="flex-1 flex flex-col items-center justify-center text-fg-subtle gap-2">
-              <MessageSquarePlus size={32} strokeWidth={1.4} className="text-fg-faint" />
-              <p className="text-[13px]">New chat — type your first message below</p>
-            </div>
-            <Composer
-              initialCwd={view.preselectedProject}
-              onSubmit={handleNewChatSubmit}
-              prefill={composerPrefill}
-              onCutToNotes={composerCutHandler}
-            />
-          </>
+        {(view.mode === 'empty' || (view.mode === 'newChat' && !view.channelId)) && (
+          <WelcomeComposer
+            initialCwd={view.mode === 'newChat' ? view.preselectedProject : undefined}
+            onSubmit={(text, cwd) => {
+              if (view.mode === 'empty') newChat()
+              handleNewChatSubmit(text, cwd)
+            }}
+          />
         )}
 
         {view.mode === 'newChat' && view.channelId && (
@@ -190,18 +187,188 @@ export default function App() {
   )
 }
 
-function EmptyState({ onNewChat }: { onNewChat: () => void }) {
+function WelcomeComposer({
+  initialCwd,
+  onSubmit,
+}: {
+  initialCwd?: string
+  onSubmit: (text: string, cwd: string) => void
+}) {
+  const { projects } = useProjects()
+  const defaultCwd =
+    initialCwd ??
+    projects.filter((p) => !p.hidden && p.exists).sort((a, b) => b.lastActiveAt - a.lastActiveAt)[0]
+      ?.path ??
+    ''
+  const [cwd, setCwd] = useState(defaultCwd)
+  const [text, setText] = useState('')
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [effort, setEffort] = useState<'low' | 'medium' | 'high'>('high')
+  const [effortOpen, setEffortOpen] = useState(false)
+  const [devMode, setDevMode] = useState(false)
+  const taRef = useRef<HTMLTextAreaElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+  const effortRef = useRef<HTMLDivElement>(null)
+  const composingRef = useRef(false)
+
+  useEffect(() => {
+    if (!initialCwd) setCwd(defaultCwd)
+  }, [initialCwd, defaultCwd])
+
+  useLayoutEffect(() => {
+    const el = taRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = Math.min(el.scrollHeight, 180) + 'px'
+  }, [text])
+
+  useEffect(() => {
+    if (!menuOpen && !effortOpen) return
+    function onClick(e: MouseEvent) {
+      if (menuOpen && menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false)
+      if (effortOpen && effortRef.current && !effortRef.current.contains(e.target as Node)) setEffortOpen(false)
+    }
+    document.addEventListener('mousedown', onClick)
+    return () => document.removeEventListener('mousedown', onClick)
+  }, [menuOpen, effortOpen])
+
+  function submit() {
+    if (!text.trim()) return
+    const effective = cwd || defaultCwd
+    if (!effective) return
+    onSubmit(text, effective)
+    setText('')
+  }
+
+  const effortLabels = { low: 'Low', medium: 'Medium', high: 'High' } as const
+
   return (
-    <div className="flex-1 flex flex-col items-center justify-center gap-4 text-fg-subtle">
-      <MessageSquarePlus size={36} strokeWidth={1.3} className="text-fg-faint" />
-      <p className="text-[13px]">Select a conversation, or start fresh.</p>
-      <button
-        onClick={onNewChat}
-        className="px-3 py-1.5 rounded-md bg-bg-inset border border-line hover:bg-bg-hover
-                   text-fg-default text-[12.5px] font-medium transition-colors"
-      >
-        New chat
-      </button>
+    <div className="flex-1 flex flex-col items-center justify-center px-6">
+      <div className="w-full max-w-2xl">
+        <h1 className="text-[22px] font-semibold text-fg-default text-center mb-6">
+          What can I help you with?
+        </h1>
+
+        <div className="rounded-xl bg-bg-inset border border-line/80 focus-within:border-line-strong transition-colors shadow-sm">
+          <textarea
+            ref={taRef}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onCompositionStart={() => { composingRef.current = true }}
+            onCompositionEnd={() => { requestAnimationFrame(() => { composingRef.current = false }) }}
+            onKeyDown={(e) => {
+              if (e.key !== 'Enter') return
+              const native = e.nativeEvent as KeyboardEvent
+              if (composingRef.current || native.isComposing || native.keyCode === 229) return
+              if (e.shiftKey) return
+              e.preventDefault()
+              submit()
+            }}
+            rows={1}
+            placeholder="Ask anything…"
+            className="w-full resize-none bg-transparent px-4 pt-4 pb-2
+                       text-[14px] leading-[1.55] placeholder:text-fg-subtle"
+          />
+
+          <div className="flex items-center justify-between px-3 py-2 border-t border-line/50">
+            {/* Left: + menu + cwd */}
+            <div className="flex items-center gap-2">
+              <div className="relative" ref={menuRef}>
+                <button
+                  onClick={() => setMenuOpen((o) => !o)}
+                  className={'h-7 w-7 flex items-center justify-center rounded-full border transition-all ' +
+                    (menuOpen
+                      ? 'bg-bg-active border-line-strong text-fg-default rotate-45'
+                      : 'border-line text-fg-subtle hover:text-fg-default hover:border-line-strong')}
+                >
+                  <Plus size={14} strokeWidth={2.25} />
+                </button>
+                {menuOpen && (
+                  <div className="absolute bottom-full left-0 mb-2 w-52 bg-bg-inset border border-line
+                                  rounded-lg shadow-lg overflow-hidden z-50">
+                    <button className="w-full flex items-center gap-2.5 px-3 py-2 text-[12.5px]
+                                       text-fg-muted hover:bg-bg-hover hover:text-fg-default text-left transition-colors">
+                      <Paperclip size={13} className="text-fg-subtle" />
+                      Attach file
+                    </button>
+                    <div className="border-t border-line" />
+                    <button
+                      onClick={() => setDevMode((d) => !d)}
+                      className="w-full flex items-center justify-between px-3 py-2 text-[12.5px]
+                                 text-fg-muted hover:bg-bg-hover hover:text-fg-default text-left transition-colors"
+                    >
+                      <span className="flex items-center gap-2.5">
+                        <Code2 size={13} className="text-fg-subtle" />
+                        Developer mode
+                      </span>
+                      <span className={'text-[11px] font-medium ' + (devMode ? 'text-accent' : 'text-fg-faint')}>
+                        {devMode ? 'ON' : 'OFF'}
+                      </span>
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* cwd selector */}
+              <select
+                value={cwd}
+                onChange={(e) => setCwd(e.target.value)}
+                className="text-[11.5px] font-mono text-fg-subtle bg-transparent border-none
+                           cursor-pointer hover:text-fg-default max-w-[200px] truncate"
+                title={cwd}
+              >
+                {projects.filter((p) => !p.hidden).map((p) => (
+                  <option key={p.path} value={p.path}>{p.path.split('/').pop()}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Right: effort selector + send */}
+            <div className="flex items-center gap-1.5">
+              <div className="relative" ref={effortRef}>
+                <button
+                  onClick={() => setEffortOpen((o) => !o)}
+                  className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium
+                             text-fg-subtle hover:text-fg-default hover:bg-bg-hover transition-colors"
+                >
+                  <Gauge size={12} />
+                  {effortLabels[effort]}
+                  <ChevronDown size={10} className="opacity-60" />
+                </button>
+                {effortOpen && (
+                  <div className="absolute bottom-full right-0 mb-2 w-36 bg-bg-inset border border-line
+                                  rounded-lg shadow-lg overflow-hidden z-50">
+                    {(['low', 'medium', 'high'] as const).map((e) => (
+                      <button
+                        key={e}
+                        onClick={() => { setEffort(e); setEffortOpen(false) }}
+                        className={'w-full flex items-center justify-between px-3 py-1.5 text-[12px] ' +
+                          'hover:bg-bg-hover transition-colors text-left ' +
+                          (effort === e ? 'text-fg-default font-medium' : 'text-fg-muted')}
+                      >
+                        {effortLabels[e]}
+                        {effort === e && <Check size={11} className="text-accent" />}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <button
+                onClick={submit}
+                disabled={!text.trim()}
+                className="h-7 w-7 flex items-center justify-center rounded-full
+                           bg-fg-default text-bg-base hover:bg-fg-muted
+                           disabled:bg-bg-active disabled:text-fg-faint disabled:cursor-not-allowed
+                           transition-colors"
+                aria-label="Send"
+              >
+                <ArrowUp size={14} strokeWidth={2.5} />
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
