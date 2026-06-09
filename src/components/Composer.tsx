@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useLayoutEffect } from 'react'
+import * as Select from '@radix-ui/react-select'
+import { Check, ChevronDown, FolderOpen, ArrowUp } from 'lucide-react'
 import { useProjects } from '../store/projects'
 
 type Props = {
-  // If cwdLocked is set, hide the picker and use that cwd
   cwdLocked?: string
-  // If unlocked, optional preselected project from sidebar "+" click
   initialCwd?: string
   onSubmit: (text: string, cwd: string) => void
   disabled?: boolean
@@ -15,17 +15,25 @@ export function Composer({ cwdLocked, initialCwd, onSubmit, disabled }: Props) {
   const defaultCwd =
     cwdLocked ??
     initialCwd ??
-    projects
-      .filter((p) => !p.hidden && p.exists)
-      .sort((a, b) => b.lastActiveAt - a.lastActiveAt)[0]?.path ??
+    projects.filter((p) => !p.hidden && p.exists).sort((a, b) => b.lastActiveAt - a.lastActiveAt)[0]
+      ?.path ??
     ''
   const [cwd, setCwd] = useState(defaultCwd)
   const [text, setText] = useState('')
+  const taRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
     if (!cwdLocked) setCwd(defaultCwd)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [defaultCwd])
+
+  // Auto-grow textarea up to ~8 lines
+  useLayoutEffect(() => {
+    const el = taRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = Math.min(el.scrollHeight, 180) + 'px'
+  }, [text])
 
   function submit() {
     if (!text.trim()) return
@@ -35,28 +43,17 @@ export function Composer({ cwdLocked, initialCwd, onSubmit, disabled }: Props) {
     setText('')
   }
 
+  const effective = cwdLocked ?? cwd
+  const cwdLabel = effective.split('/').pop() || effective || 'No directory'
+
   return (
-    <div className="border-t border-border p-3 bg-background">
-      {!cwdLocked && (
-        <div className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
-          <span>📁</span>
-          <select
-            value={cwd}
-            onChange={(e) => setCwd(e.target.value)}
-            className="border border-border rounded px-2 py-1 bg-background text-xs flex-1 max-w-md"
-          >
-            {projects
-              .filter((p) => !p.hidden)
-              .map((p) => (
-                <option key={p.path} value={p.path}>
-                  {p.path}
-                </option>
-              ))}
-          </select>
-        </div>
-      )}
-      <div className="flex gap-2">
+    <div className="px-6 pb-5 pt-1">
+      <div
+        className="relative rounded-xl bg-bg-inset border border-line/80
+                   focus-within:border-line-strong transition-colors"
+      >
         <textarea
+          ref={taRef}
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {
@@ -66,17 +63,82 @@ export function Composer({ cwdLocked, initialCwd, onSubmit, disabled }: Props) {
             }
           }}
           disabled={disabled}
-          rows={3}
-          placeholder="Type a message — Enter to send, Shift+Enter for newline"
-          className="flex-1 border border-border rounded px-3 py-2 text-sm resize-none bg-background"
+          rows={1}
+          placeholder="Send a message…"
+          className="w-full resize-none bg-transparent px-3.5 pt-3 pb-1.5
+                     text-[13.5px] leading-[1.5] placeholder:text-fg-subtle"
         />
-        <button
-          onClick={submit}
-          disabled={disabled || !text.trim()}
-          className="self-end px-4 py-2 rounded bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50"
-        >
-          Send
-        </button>
+        <div className="flex items-center justify-between px-2.5 py-1.5 border-t border-line/60">
+          {cwdLocked ? (
+            <div className="flex items-center gap-1.5 text-[11.5px] text-fg-subtle px-1.5 py-0.5">
+              <FolderOpen size={11} />
+              <span className="font-mono truncate max-w-[360px]" title={cwdLocked}>
+                {cwdLabel}
+              </span>
+            </div>
+          ) : (
+            <Select.Root value={cwd} onValueChange={setCwd}>
+              <Select.Trigger
+                className="flex items-center gap-1.5 px-1.5 py-0.5 rounded
+                           text-[11.5px] text-fg-subtle hover:text-fg-default
+                           hover:bg-bg-hover/60 transition-colors"
+              >
+                <FolderOpen size={11} />
+                <Select.Value>
+                  <span className="font-mono">{cwdLabel}</span>
+                </Select.Value>
+                <ChevronDown size={11} className="opacity-60" />
+              </Select.Trigger>
+              <Select.Portal>
+                <Select.Content
+                  className="z-50 bg-bg-panel border border-line rounded-lg shadow-2xl
+                             overflow-hidden min-w-[280px] max-h-[400px]"
+                  position="popper"
+                  sideOffset={6}
+                >
+                  <Select.Viewport className="p-1">
+                    {projects
+                      .filter((p) => !p.hidden)
+                      .map((p) => (
+                        <Select.Item
+                          key={p.path}
+                          value={p.path}
+                          className="relative flex items-center gap-2 px-2 py-1.5 pr-7 rounded
+                                     text-[12px] text-fg-muted hover:bg-bg-hover hover:text-fg-default
+                                     data-[state=checked]:text-fg-default cursor-default outline-none"
+                        >
+                          <FolderOpen size={11} className="text-fg-subtle shrink-0" />
+                          <Select.ItemText>
+                            <span className="font-mono truncate">{p.path}</span>
+                          </Select.ItemText>
+                          <Select.ItemIndicator className="absolute right-2">
+                            <Check size={11} className="text-accent" />
+                          </Select.ItemIndicator>
+                        </Select.Item>
+                      ))}
+                  </Select.Viewport>
+                </Select.Content>
+              </Select.Portal>
+            </Select.Root>
+          )}
+
+          <div className="flex items-center gap-2">
+            <span className="text-[10.5px] text-fg-faint hidden sm:inline">
+              ↵ send · ⇧↵ newline
+            </span>
+            <button
+              onClick={submit}
+              disabled={disabled || !text.trim()}
+              className="h-6 w-6 flex items-center justify-center rounded
+                         bg-fg-default text-bg-base hover:bg-fg-muted
+                         disabled:bg-bg-hover disabled:text-fg-faint disabled:cursor-not-allowed
+                         transition-colors"
+              aria-label="Send"
+            >
+              <ArrowUp size={13} strokeWidth={2.5} />
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   )

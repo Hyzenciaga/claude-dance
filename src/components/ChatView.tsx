@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { AlertCircle, CircleSlash } from 'lucide-react'
 import { useEvents } from '../store/events'
 import { deriveMessages } from '../lib/derive'
 import { UserMessage } from './messages/UserMessage'
@@ -17,32 +18,41 @@ export function ChatView({ sessionId, status, error }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight })
+    const el = scrollRef.current
+    if (!el) return
+    el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
   }, [messages.length])
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
       {status === 'error' && (
-        <div className="bg-red-100 text-red-800 text-sm px-4 py-2 border-b border-red-200">
-          Claude error: {error}
+        <div className="flex items-center gap-2 px-6 py-2 bg-red-500/10 text-red-300/90
+                        text-[12px] border-b border-red-500/20">
+          <AlertCircle size={13} />
+          <span className="truncate">Claude error: {error}</span>
         </div>
       )}
       {status === 'exited' && (
-        <div className="bg-amber-50 text-amber-800 text-xs px-4 py-1.5 border-b border-amber-200">
-          Claude process exited.
+        <div className="flex items-center gap-2 px-6 py-1.5 bg-bg-inset text-fg-subtle
+                        text-[11.5px] border-b border-line">
+          <CircleSlash size={11} />
+          Claude process exited
         </div>
       )}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 py-6">
-        {messages.length === 0 && (
-          <div className="text-center text-muted-foreground text-sm mt-8">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto">
+        {messages.length === 0 ? (
+          <div className="h-full flex items-center justify-center text-fg-subtle text-[12.5px]">
             No messages yet
           </div>
+        ) : (
+          <div className="py-2">
+            {messages.map((m) => {
+              if (m.kind === 'user') return <UserMessage key={m.key} text={m.text} />
+              if (m.kind === 'assistant') return <AssistantMessage key={m.key} text={m.text} />
+              return <ToolUseCard key={m.key} tool={m.tool} input={m.input} />
+            })}
+          </div>
         )}
-        {messages.map((m) => {
-          if (m.kind === 'user') return <UserMessage key={m.key} text={m.text} />
-          if (m.kind === 'assistant') return <AssistantMessage key={m.key} text={m.text} />
-          return <ToolUseCard key={m.key} tool={m.tool} input={m.input} />
-        })}
       </div>
     </div>
   )

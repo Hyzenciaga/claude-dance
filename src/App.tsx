@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { MessageSquarePlus } from 'lucide-react'
 import { Sidebar } from './components/Sidebar'
 import { ChatView } from './components/ChatView'
 import { Composer } from './components/Composer'
@@ -39,7 +40,6 @@ export default function App() {
   }
 
   async function handleResumeSubmit(text: string, cwd: string, session: SessionSummary) {
-    // Reuse existing channel if it's still running for this session
     const existing = chats.channelBySession[session.id]
     const existingChat = existing ? chats.chats[existing] : undefined
     if (existingChat && existingChat.status === 'running') {
@@ -63,18 +63,19 @@ export default function App() {
       : chatState?.sessionId ?? channelId ?? ''
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full bg-bg-base">
       <Sidebar onNewChat={newChat} onOpenSession={openSession} />
       <main className="flex-1 flex flex-col min-h-0">
-        {view.mode === 'empty' && (
-          <div className="flex-1 flex items-center justify-center text-muted-foreground">
-            Select a session or start a new chat
-          </div>
-        )}
+        {/* drag region across the top of main pane */}
+        <div className="app-drag h-9 flex-shrink-0" />
+
+        {view.mode === 'empty' && <EmptyState onNewChat={() => newChat()} />}
+
         {view.mode === 'newChat' && !view.channelId && (
           <>
-            <div className="flex-1 flex items-center justify-center text-muted-foreground">
-              <p>New chat — type your first message below</p>
+            <div className="flex-1 flex flex-col items-center justify-center text-fg-subtle gap-2">
+              <MessageSquarePlus size={32} strokeWidth={1.4} className="text-fg-faint" />
+              <p className="text-[13px]">New chat — type your first message below</p>
             </div>
             <Composer
               initialCwd={view.preselectedProject}
@@ -82,6 +83,7 @@ export default function App() {
             />
           </>
         )}
+
         {view.mode === 'newChat' && view.channelId && (
           <>
             <ChatView sessionId={sessionId} status={chatState?.status} error={chatState?.error} />
@@ -92,6 +94,7 @@ export default function App() {
             />
           </>
         )}
+
         {view.mode === 'session' && (
           <>
             <ChatView sessionId={view.session.id} status={chatState?.status} error={chatState?.error} />
@@ -102,6 +105,22 @@ export default function App() {
           </>
         )}
       </main>
+    </div>
+  )
+}
+
+function EmptyState({ onNewChat }: { onNewChat: () => void }) {
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center gap-4 text-fg-subtle">
+      <MessageSquarePlus size={36} strokeWidth={1.3} className="text-fg-faint" />
+      <p className="text-[13px]">Select a conversation, or start fresh.</p>
+      <button
+        onClick={onNewChat}
+        className="px-3 py-1.5 rounded-md bg-bg-inset border border-line hover:bg-bg-hover
+                   text-fg-default text-[12.5px] font-medium transition-colors"
+      >
+        New chat
+      </button>
     </div>
   )
 }
