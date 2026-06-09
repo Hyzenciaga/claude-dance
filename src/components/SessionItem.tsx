@@ -5,10 +5,17 @@ type Props = {
   session: SessionSummary
   active: boolean
   running?: boolean
+  unread?: boolean
   onClick: () => void
 }
 
-export function SessionItem({ session, active, running, onClick }: Props) {
+export function SessionItem({ session, active, running, unread, onClick }: Props) {
+  const dotClass = running
+    ? 'breathing-dot breathing-dot--thinking'
+    : unread
+      ? 'breathing-dot breathing-dot--unread'
+      : null
+
   return (
     <button
       onClick={onClick}
@@ -20,8 +27,8 @@ export function SessionItem({ session, active, running, onClick }: Props) {
       }
       title={session.title}
     >
-      {running && <span className="breathing-dot" />}
-      {active && !running && (
+      {dotClass && <span className={dotClass} />}
+      {active && !dotClass && (
         <span className="absolute left-0 top-1/2 -translate-y-1/2 h-4 w-[2px] rounded-full bg-accent" />
       )}
       <div className="min-w-0 flex-1">

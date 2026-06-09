@@ -9,16 +9,19 @@ type ChatState = {
   status: 'running' | 'exited' | 'error'
   error?: string
   cwd: string
+  unread?: boolean
 }
 
 type State = {
   chats: Record<ChannelId, ChatState>
   channelBySession: Record<string, ChannelId>
+  viewingChannelId: string | null
   init: () => void
   startNew: (cwd: string, initialMessage: string) => Promise<ChannelId>
   resume: (cwd: string, sessionId: string, initialMessage: string) => Promise<ChannelId>
   send: (channelId: ChannelId, text: string) => Promise<void>
   stop: (channelId: ChannelId) => Promise<void>
+  markViewing: (channelId: string | null) => void
 }
 
 let listenerInstalled = false
@@ -26,6 +29,7 @@ let listenerInstalled = false
 export const useChats = create<State>((set, get) => ({
   chats: {},
   channelBySession: {},
+  viewingChannelId: null,
   init: () => {
     if (listenerInstalled) return
     listenerInstalled = true
@@ -61,7 +65,13 @@ export const useChats = create<State>((set, get) => ({
         set((s) => {
           const c = s.chats[evt.channelId]
           if (!c) return s
-          return { chats: { ...s.chats, [evt.channelId]: { ...c, status: 'exited' } } }
+          const isViewing = s.viewingChannelId === evt.channelId
+          return {
+            chats: {
+              ...s.chats,
+              [evt.channelId]: { ...c, status: 'exited', unread: !isViewing },
+            },
+          }
         })
       } else if (evt.kind === 'error') {
         set((s) => {
@@ -118,6 +128,19 @@ export const useChats = create<State>((set, get) => ({
       const c = s.chats[channelId]
       if (!c) return s
       return { chats: { ...s.chats, [channelId]: { ...c, status: 'exited' } } }
+    })
+  },
+  markViewing: (channelId) => {
+    set((s) => {
+      const updates: Record<ChannelId, ChatState> = {}
+      if (channelId) {
+        const c = s.chats[channelId]
+        if (c?.unread) updates[channelId] = { ...c, unread: false }
+      }
+      return {
+        viewingChannelId: channelId,
+        chats: Object.keys(updates).length > 0 ? { ...s.chats, ...updates } : s.chats,
+      }
     })
   },
 }))

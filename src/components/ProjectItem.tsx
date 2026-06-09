@@ -14,7 +14,9 @@ type Props = {
   onSelectSession: (s: SessionSummary) => void
   query: string
   hasRunning?: boolean
+  hasUnread?: boolean
   runningSessionIds?: Set<string>
+  unreadSessionIds?: Set<string>
 }
 
 export function ProjectItem({
@@ -26,7 +28,9 @@ export function ProjectItem({
   onSelectSession,
   query,
   hasRunning,
+  hasUnread,
   runningSessionIds,
+  unreadSessionIds,
 }: Props) {
   const { sessionsByProject, loadFor } = useSessions()
   const [hover, setHover] = useState(false)
@@ -42,6 +46,12 @@ export function ProjectItem({
   const groups = groupSessionsByTime(filtered)
   const name = project.path.split('/').pop() || project.path
 
+  const projectDotClass = hasRunning
+    ? 'breathing-dot breathing-dot--thinking'
+    : hasUnread
+      ? 'breathing-dot breathing-dot--unread'
+      : null
+
   return (
     <div
       className="mb-0.5"
@@ -54,7 +64,7 @@ export function ProjectItem({
           className="flex-1 flex items-center min-w-0 h-full px-1.5 text-left"
           title={project.path}
         >
-          {hasRunning && <span className="breathing-dot mr-1.5" />}
+          {projectDotClass && <span className={projectDotClass + ' mr-1.5'} />}
           <ChevronRight
             size={12}
             strokeWidth={2.5}
@@ -95,6 +105,7 @@ export function ProjectItem({
                   session={s}
                   active={s.id === selectedSessionId}
                   running={runningSessionIds?.has(s.id)}
+                  unread={unreadSessionIds?.has(s.id)}
                   onClick={() => onSelectSession(s)}
                 />
               ))}

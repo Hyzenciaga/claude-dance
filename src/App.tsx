@@ -37,6 +37,8 @@ export default function App() {
   function openSession(s: SessionSummary) {
     selectSession(s.id)
     loadFromFile(s.id, s.jsonlPath)
+    const ch = chats.channelBySession[s.id]
+    if (ch) chats.markViewing(ch)
     setView({ mode: 'session', session: s })
   }
 
@@ -47,6 +49,7 @@ export default function App() {
 
   async function handleNewChatSubmit(text: string, cwd: string) {
     const channelId = await chats.startNew(cwd, text)
+    chats.markViewing(channelId)
     setView({ mode: 'newChat', channelId })
   }
 
@@ -110,13 +113,19 @@ export default function App() {
     if (channelId) chats.stop(channelId)
   }
 
-  // Derive running sessions/projects for breathing dots
+  // Derive running + unread sessions/projects for breathing dots
   const runningSessionIds = new Set<string>()
   const runningProjectPaths = new Set<string>()
+  const unreadSessionIds = new Set<string>()
+  const unreadProjectPaths = new Set<string>()
   for (const c of Object.values(chats.chats)) {
     if (c.status === 'running') {
       if (c.sessionId) runningSessionIds.add(c.sessionId)
       if (c.cwd) runningProjectPaths.add(c.cwd)
+    }
+    if (c.unread) {
+      if (c.sessionId) unreadSessionIds.add(c.sessionId)
+      if (c.cwd) unreadProjectPaths.add(c.cwd)
     }
   }
 
@@ -136,6 +145,8 @@ export default function App() {
         onOpenSettings={() => setView({ mode: 'settings' })}
         runningSessionIds={runningSessionIds}
         runningProjectPaths={runningProjectPaths}
+        unreadSessionIds={unreadSessionIds}
+        unreadProjectPaths={unreadProjectPaths}
       />
       <main className="flex-1 flex flex-col min-h-0 min-w-0">
         {/* drag region + right-side notes toggle */}

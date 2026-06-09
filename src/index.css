@@ -53,7 +53,7 @@ textarea, input { outline: none; }
 
 ::selection { background: #fed7aa; color: #1f1f1e; }
 
-/* Breathing dot for running sessions/projects */
+/* Breathing dot for running/unread sessions/projects */
 @keyframes breathe {
   0%, 100% { opacity: 1; transform: scale(1); }
   50% { opacity: 0.4; transform: scale(0.75); }
@@ -62,7 +62,8 @@ textarea, input { outline: none; }
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #22c55e;
   animation: breathe 2s ease-in-out infinite;
   flex-shrink: 0;
 }
+.breathing-dot--thinking { background: #3b82f6; }
+.breathing-dot--unread { background: #22c55e; animation-duration: 3s; }
