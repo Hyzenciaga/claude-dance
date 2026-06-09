@@ -3,10 +3,15 @@ import { execSync } from 'node:child_process'
 import { resolve } from 'node:path'
 import { registerIpc } from './ipc'
 import { shutdownAll } from './claude-process'
+import { hydrateShellPath } from './shell-path'
 
 function checkClaudeBinary(): boolean {
   try {
-    execSync('command -v claude', { stdio: 'ignore', shell: '/bin/sh' })
+    execSync('command -v claude', {
+      stdio: 'ignore',
+      shell: '/bin/sh',
+      env: { ...process.env },
+    })
     return true
   } catch {
     return false
@@ -37,10 +42,14 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  hydrateShellPath()
   if (!checkClaudeBinary()) {
     dialog.showErrorBox(
       'Claude CLI not found',
-      'ClaudeDance needs the `claude` command on PATH. Install Claude Code first: https://docs.claude.com/en/docs/claude-code',
+      `ClaudeDance could not locate the 'claude' command.\n\n` +
+        `Resolved PATH:\n${process.env['PATH']}\n\n` +
+        `If 'claude' is installed via nvm/asdf/brew, make sure your shell init ` +
+        `(~/.zshrc or ~/.bash_profile) exports its location on PATH.`,
     )
     app.quit()
     return
