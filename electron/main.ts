@@ -1,5 +1,6 @@
 import { app, BrowserWindow } from 'electron'
 import { resolve } from 'node:path'
+import { registerIpc } from './ipc'
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -11,12 +12,10 @@ function createWindow() {
       nodeIntegration: false,
     },
   })
+  registerIpc(win)
   const devUrl = process.env['ELECTRON_RENDERER_URL']
-  if (devUrl) {
-    win.loadURL(devUrl)
-  } else {
-    win.loadFile(resolve(__dirname, '../renderer/index.html'))
-  }
+  if (devUrl) win.loadURL(devUrl)
+  else win.loadFile(resolve(__dirname, '../renderer/index.html'))
 }
 
 app.whenReady().then(() => {
