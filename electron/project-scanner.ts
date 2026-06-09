@@ -93,7 +93,6 @@ async function readCwdFromJsonl(filePath: string): Promise<string | null> {
           return obj['cwd']
         }
       } catch { /* skip malformed */ }
-      // Only parse one line then bail — if we can't get past the first record, fall through
     }
     return null
   } catch {
