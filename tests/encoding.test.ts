@@ -21,8 +21,4 @@ describe('decodeCwd', () => {
       '/Users/steve/CodeFiles/ClaudeCode/ClaudeDance',
     )
   })
-  it('round-trips', () => {
-    const cwd = '/Users/steve/CodeFiles/AliCode/oh-my-evals'
-    expect(decodeCwd(encodeCwd(cwd))).toBe(cwd)
-  })
 })

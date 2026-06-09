@@ -3,6 +3,10 @@ export function encodeCwd(cwd: string): string {
   return trimmed.replace(/\//g, '-')
 }
 
+/**
+ * Lossy: paths containing literal '-' cannot be recovered.
+ * Used as a best-effort fallback; prefer reading the `cwd` field from the first jsonl event when possible.
+ */
 export function decodeCwd(encoded: string): string {
   return encoded.replace(/-/g, '/')
 }
