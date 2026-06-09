@@ -32,14 +32,31 @@ export const useChats = create<State>((set, get) => ({
     api().onChatEvent((evt) => {
       if (evt.kind === 'event') {
         const chat = get().chats[evt.channelId]
-        const sessionId = evt.event.sessionId ?? chat?.sessionId ?? evt.channelId
-        if (chat && evt.event.sessionId && !chat.sessionId) {
-          set((s) => ({
-            chats: { ...s.chats, [evt.channelId]: { ...chat, sessionId: evt.event.sessionId! } },
-            channelBySession: { ...s.channelBySession, [evt.event.sessionId!]: evt.channelId },
-          }))
+        let storageKey: string
+        if (chat?.sessionId) {
+          storageKey = chat.sessionId
+        } else if (evt.event.sessionId) {
+          const revealed = evt.event.sessionId
+          storageKey = revealed
+          const acc = useEvents.getState().eventsBySession[evt.channelId]
+          if (acc && acc.length > 0) {
+            useEvents.setState((s) => {
+              const next = { ...s.eventsBySession }
+              delete next[evt.channelId]
+              next[revealed] = [...(next[revealed] ?? []), ...acc]
+              return { eventsBySession: next }
+            })
+          }
+          if (chat) {
+            set((s) => ({
+              chats: { ...s.chats, [evt.channelId]: { ...chat, sessionId: revealed } },
+              channelBySession: { ...s.channelBySession, [revealed]: evt.channelId },
+            }))
+          }
+        } else {
+          storageKey = evt.channelId
         }
-        useEvents.getState().appendEvent(sessionId, evt.event)
+        useEvents.getState().appendEvent(storageKey, evt.event)
       } else if (evt.kind === 'exit') {
         set((s) => {
           const c = s.chats[evt.channelId]

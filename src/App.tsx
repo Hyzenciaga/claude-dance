@@ -44,11 +44,6 @@ export default function App() {
     const existingChat = existing ? chats.chats[existing] : undefined
     if (existingChat && existingChat.status === 'running') {
       await chats.send(existing, text)
-      // Push the user message into events immediately so it appears in the view
-      useEvents.getState().appendEvent(session.id, {
-        raw: { type: 'user', message: { role: 'user', content: text } },
-        kind: 'user',
-      })
       return
     }
     const channelId = await chats.resume(cwd, session.id, text)
