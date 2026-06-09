@@ -23,7 +23,6 @@ export function startChat(win: BrowserWindow, req: ChatStartRequest): ChannelId 
     '--input-format', 'stream-json',
     '--include-partial-messages',
     '--include-hook-events',
-    '--replay-user-messages',
     '--verbose',
   ]
   if (req.sessionId) args.push('--resume', req.sessionId)

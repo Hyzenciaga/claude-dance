@@ -82,6 +82,10 @@ export const useChats = create<State>((set, get) => ({
         [channelId]: { channelId, sessionId: null, status: 'running', cwd },
       },
     }))
+    useEvents.getState().appendEvent(channelId, {
+      raw: { type: 'user', message: { role: 'user', content: initialMessage } },
+      kind: 'user',
+    })
     return channelId
   },
   resume: async (cwd, sessionId, initialMessage) => {
@@ -93,9 +97,19 @@ export const useChats = create<State>((set, get) => ({
       },
       channelBySession: { ...s.channelBySession, [sessionId]: channelId },
     }))
+    useEvents.getState().appendEvent(sessionId, {
+      raw: { type: 'user', message: { role: 'user', content: initialMessage } },
+      kind: 'user',
+    })
     return channelId
   },
   send: async (channelId, text) => {
+    const chat = get().chats[channelId]
+    const storageKey = chat?.sessionId ?? channelId
+    useEvents.getState().appendEvent(storageKey, {
+      raw: { type: 'user', message: { role: 'user', content: text } },
+      kind: 'user',
+    })
     await api().sendChatMessage(channelId, text)
   },
   stop: async (channelId) => {
