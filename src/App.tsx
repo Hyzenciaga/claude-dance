@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef, useLayoutEffect } from 'react'
 import {
   PanelRightOpen, PanelRightClose,
-  Plus, ArrowUp, Paperclip, Code2, Gauge, ChevronDown, Check,
+  Plus, ArrowUp, Paperclip, Code2, Gauge, ChevronDown, Check, FolderOpen,
 } from 'lucide-react'
 import { Sidebar } from './components/Sidebar'
 import { ChatView } from './components/ChatView'
@@ -271,7 +271,7 @@ function WelcomeComposer({
           />
 
           <div className="flex items-center justify-between px-3 py-2 border-t border-line/50">
-            {/* Left: + menu + cwd */}
+            {/* Left: + menu */}
             <div className="flex items-center gap-2">
               <div className="relative" ref={menuRef}>
                 <button
@@ -308,19 +308,6 @@ function WelcomeComposer({
                   </div>
                 )}
               </div>
-
-              {/* cwd selector */}
-              <select
-                value={cwd}
-                onChange={(e) => setCwd(e.target.value)}
-                className="text-[11.5px] font-mono text-fg-subtle bg-transparent border-none
-                           cursor-pointer hover:text-fg-default max-w-[200px] truncate"
-                title={cwd}
-              >
-                {projects.filter((p) => !p.hidden).map((p) => (
-                  <option key={p.path} value={p.path}>{p.path.split('/').pop()}</option>
-                ))}
-              </select>
             </div>
 
             {/* Right: effort selector + send */}
@@ -336,7 +323,7 @@ function WelcomeComposer({
                   <ChevronDown size={10} className="opacity-60" />
                 </button>
                 {effortOpen && (
-                  <div className="absolute bottom-full right-0 mb-2 w-36 bg-bg-inset border border-line
+                  <div className="absolute top-full right-0 mt-2 w-36 bg-bg-inset border border-line
                                   rounded-lg shadow-lg overflow-hidden z-50">
                     {(['low', 'medium', 'high'] as const).map((e) => (
                       <button
@@ -366,6 +353,25 @@ function WelcomeComposer({
                 <ArrowUp size={14} strokeWidth={2.5} />
               </button>
             </div>
+          </div>
+        </div>
+
+        {/* Project selector below the input box */}
+        <div className="mt-2.5 px-1">
+          <div className="flex items-center gap-1.5">
+            <FolderOpen size={12} className="text-fg-subtle shrink-0" />
+            <select
+              value={cwd}
+              onChange={(e) => setCwd(e.target.value)}
+              className="text-[12px] font-mono text-fg-subtle bg-transparent border-none
+                         cursor-pointer hover:text-fg-default truncate"
+              title={cwd}
+            >
+              {projects.filter((p) => !p.hidden).map((p) => (
+                <option key={p.path} value={p.path}>{p.path.split('/').pop()}</option>
+              ))}
+            </select>
+            <ChevronDown size={10} className="text-fg-faint -ml-0.5" />
           </div>
         </div>
       </div>
