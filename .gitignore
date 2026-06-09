@@ -3,6 +3,7 @@ out/
 dist/
 .DS_Store
 .superpowers/
+.omc/
 *.log
 *.tsbuildinfo
 .vite/
