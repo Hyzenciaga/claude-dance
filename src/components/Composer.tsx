@@ -1,18 +1,29 @@
 import { useState, useEffect, useRef, useLayoutEffect } from 'react'
 import * as Select from '@radix-ui/react-select'
-import { Check, ChevronDown, FolderOpen, ArrowUp, NotebookPen } from 'lucide-react'
+import { Check, ChevronDown, FolderOpen, ArrowUp, NotebookPen, Square } from 'lucide-react'
 import { useProjects } from '../store/projects'
 
 type Props = {
   cwdLocked?: string
   initialCwd?: string
   onSubmit: (text: string, cwd: string) => void
+  onStop?: () => void
   onCutToNotes?: (text: string) => void
   disabled?: boolean
+  running?: boolean
   prefill?: { text: string; nonce: number } | null
 }
 
-export function Composer({ cwdLocked, initialCwd, onSubmit, onCutToNotes, disabled, prefill }: Props) {
+export function Composer({
+  cwdLocked,
+  initialCwd,
+  onSubmit,
+  onStop,
+  onCutToNotes,
+  disabled,
+  running,
+  prefill,
+}: Props) {
   const { projects } = useProjects()
   const defaultCwd =
     cwdLocked ??
@@ -30,7 +41,6 @@ export function Composer({ cwdLocked, initialCwd, onSubmit, onCutToNotes, disabl
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [defaultCwd])
 
-  // Auto-grow textarea up to ~8 lines
   useLayoutEffect(() => {
     const el = taRef.current
     if (!el) return
@@ -38,8 +48,6 @@ export function Composer({ cwdLocked, initialCwd, onSubmit, onCutToNotes, disabl
     el.style.height = Math.min(el.scrollHeight, 180) + 'px'
   }, [text])
 
-  // Refill from notes: append to textarea, focus, place caret at end.
-  // Keyed by nonce so re-clicking the same note re-fires.
   useEffect(() => {
     if (!prefill) return
     setText((prev) => {
@@ -86,25 +94,24 @@ export function Composer({ cwdLocked, initialCwd, onSubmit, onCutToNotes, disabl
           onChange={(e) => setText(e.target.value)}
           onCompositionStart={() => { composingRef.current = true }}
           onCompositionEnd={() => {
-            // Stay "composing" for one tick so the Enter that commits IME
-            // doesn't immediately trigger submit on browsers that fire
-            // keydown after compositionend.
             requestAnimationFrame(() => { composingRef.current = false })
           }}
           onKeyDown={(e) => {
-            // Native IME path: most browsers report keyCode 229 while composing.
-            // Belt-and-suspenders: also check React's nativeEvent.isComposing
-            // and our composingRef flag.
             if (e.key !== 'Enter') return
-            if (e.shiftKey) return
             const native = e.nativeEvent as KeyboardEvent
-            if (
-              composingRef.current ||
-              native.isComposing ||
-              native.keyCode === 229
-            ) {
+            if (composingRef.current || native.isComposing || native.keyCode === 229) return
+
+            // ⌘+Shift+Enter → cut to notes
+            if ((e.metaKey || e.ctrlKey) && e.shiftKey) {
+              e.preventDefault()
+              cutToNotes()
               return
             }
+
+            // Shift+Enter → newline (default browser behavior, don't prevent)
+            if (e.shiftKey) return
+
+            // Enter → send
             e.preventDefault()
             submit()
           }}
@@ -170,13 +177,13 @@ export function Composer({ cwdLocked, initialCwd, onSubmit, onCutToNotes, disabl
 
           <div className="flex items-center gap-1.5">
             <span className="text-[10.5px] text-fg-faint hidden sm:inline mr-1">
-              ↵ send · ⇧↵ newline
+              ↵ send · ⇧↵ newline{onCutToNotes ? ' · ⌘⇧↵ note' : ''}
             </span>
             {onCutToNotes && (
               <button
                 onClick={cutToNotes}
                 disabled={!text.trim()}
-                title="Move to notes"
+                title="Move to notes (⌘⇧↵)"
                 aria-label="Move input to notes"
                 className="h-6 w-6 flex items-center justify-center rounded
                            text-fg-subtle hover:text-fg-default hover:bg-bg-hover
@@ -186,17 +193,30 @@ export function Composer({ cwdLocked, initialCwd, onSubmit, onCutToNotes, disabl
                 <NotebookPen size={13} strokeWidth={2} />
               </button>
             )}
-            <button
-              onClick={submit}
-              disabled={disabled || !text.trim()}
-              className="h-6 w-6 flex items-center justify-center rounded
-                         bg-fg-default text-bg-base hover:bg-fg-muted
-                         disabled:bg-bg-hover disabled:text-fg-faint disabled:cursor-not-allowed
-                         transition-colors"
-              aria-label="Send"
-            >
-              <ArrowUp size={13} strokeWidth={2.5} />
-            </button>
+            {running ? (
+              <button
+                onClick={onStop}
+                className="h-6 w-6 flex items-center justify-center rounded
+                           bg-red-500 text-white hover:bg-red-600
+                           transition-colors"
+                aria-label="Stop"
+                title="Stop Claude"
+              >
+                <Square size={10} strokeWidth={0} fill="currentColor" />
+              </button>
+            ) : (
+              <button
+                onClick={submit}
+                disabled={disabled || !text.trim()}
+                className="h-6 w-6 flex items-center justify-center rounded
+                           bg-fg-default text-bg-base hover:bg-fg-muted
+                           disabled:bg-bg-hover disabled:text-fg-faint disabled:cursor-not-allowed
+                           transition-colors"
+                aria-label="Send"
+              >
+                <ArrowUp size={13} strokeWidth={2.5} />
+              </button>
+            )}
           </div>
         </div>
       </div>

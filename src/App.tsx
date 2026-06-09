@@ -98,6 +98,11 @@ export default function App() {
   const composerCutHandler =
     notesSessionId || notesProjectPath ? handleCutToNotes : undefined
 
+  const isRunning = chatState?.status === 'running'
+  function handleStop() {
+    if (channelId) chats.stop(channelId)
+  }
+
   // Notes button is meaningful only when there's at least a project or session context
   const canShowNotes = view.mode !== 'empty' && (notesSessionId !== null || notesProjectPath !== null)
   const showNotesPanel = notesOpen && canShowNotes
@@ -145,6 +150,8 @@ export default function App() {
               cwdLocked={chatState?.cwd}
               onSubmit={(text, cwd) => handleNewChatSubmit(text, cwd)}
               disabled={chatState?.status !== 'running' && chatState?.status !== undefined}
+              running={isRunning}
+              onStop={handleStop}
               prefill={composerPrefill}
               onCutToNotes={composerCutHandler}
             />
@@ -157,6 +164,8 @@ export default function App() {
             <Composer
               cwdLocked={view.session.projectPath}
               onSubmit={(text, cwd) => handleResumeSubmit(text, cwd, view.session)}
+              running={isRunning}
+              onStop={handleStop}
               prefill={composerPrefill}
               onCutToNotes={composerCutHandler}
             />
