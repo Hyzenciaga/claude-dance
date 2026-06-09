@@ -13,6 +13,8 @@ type Props = {
   selectedSessionId: string | null
   onSelectSession: (s: SessionSummary) => void
   query: string
+  hasRunning?: boolean
+  runningSessionIds?: Set<string>
 }
 
 export function ProjectItem({
@@ -23,6 +25,8 @@ export function ProjectItem({
   selectedSessionId,
   onSelectSession,
   query,
+  hasRunning,
+  runningSessionIds,
 }: Props) {
   const { sessionsByProject, loadFor } = useSessions()
   const [hover, setHover] = useState(false)
@@ -50,6 +54,7 @@ export function ProjectItem({
           className="flex-1 flex items-center min-w-0 h-full px-1.5 text-left"
           title={project.path}
         >
+          {hasRunning && <span className="breathing-dot mr-1.5" />}
           <ChevronRight
             size={12}
             strokeWidth={2.5}
@@ -89,6 +94,7 @@ export function ProjectItem({
                   key={s.id}
                   session={s}
                   active={s.id === selectedSessionId}
+                  running={runningSessionIds?.has(s.id)}
                   onClick={() => onSelectSession(s)}
                 />
               ))}

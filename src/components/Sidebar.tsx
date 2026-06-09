@@ -9,9 +9,11 @@ type Props = {
   onNewChat: (projectPath?: string) => void
   onOpenSession: (s: SessionSummary) => void
   onOpenSettings: () => void
+  runningSessionIds?: Set<string>
+  runningProjectPaths?: Set<string>
 }
 
-export function Sidebar({ onNewChat, onOpenSession, onOpenSettings }: Props) {
+export function Sidebar({ onNewChat, onOpenSession, onOpenSettings, runningSessionIds, runningProjectPaths }: Props) {
   const { projects, load } = useProjects()
   const { selectedSessionId } = useSessions()
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
@@ -84,6 +86,8 @@ export function Sidebar({ onNewChat, onOpenSession, onOpenSettings }: Props) {
             selectedSessionId={selectedSessionId}
             onSelectSession={onOpenSession}
             query={query}
+            hasRunning={runningProjectPaths?.has(p.path)}
+            runningSessionIds={runningSessionIds}
           />
         ))}
         {visible.length === 0 && (

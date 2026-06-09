@@ -110,6 +110,16 @@ export default function App() {
     if (channelId) chats.stop(channelId)
   }
 
+  // Derive running sessions/projects for breathing dots
+  const runningSessionIds = new Set<string>()
+  const runningProjectPaths = new Set<string>()
+  for (const c of Object.values(chats.chats)) {
+    if (c.status === 'running') {
+      if (c.sessionId) runningSessionIds.add(c.sessionId)
+      if (c.cwd) runningProjectPaths.add(c.cwd)
+    }
+  }
+
   // Notes button is meaningful only when there's at least a project or session context
   const canShowNotes = view.mode !== 'empty' && (notesSessionId !== null || notesProjectPath !== null)
   const showNotesPanel = notesOpen && canShowNotes
@@ -120,7 +130,13 @@ export default function App() {
 
   return (
     <div className="flex h-full bg-bg-base">
-      <Sidebar onNewChat={newChat} onOpenSession={openSession} onOpenSettings={() => setView({ mode: 'settings' })} />
+      <Sidebar
+        onNewChat={newChat}
+        onOpenSession={openSession}
+        onOpenSettings={() => setView({ mode: 'settings' })}
+        runningSessionIds={runningSessionIds}
+        runningProjectPaths={runningProjectPaths}
+      />
       <main className="flex-1 flex flex-col min-h-0 min-w-0">
         {/* drag region + right-side notes toggle */}
         <div className="app-drag h-9 flex-shrink-0 flex items-center justify-end pr-2.5">
