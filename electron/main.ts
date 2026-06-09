@@ -1,5 +1,6 @@
-import { app, BrowserWindow, dialog } from 'electron'
+import { app, BrowserWindow, dialog, nativeImage } from 'electron'
 import { execSync } from 'node:child_process'
+import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { registerIpc } from './ipc'
 import { shutdownAll } from './claude-process'
@@ -27,6 +28,7 @@ function createWindow() {
     backgroundColor: '#fbfbfa',
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 14, y: 14 },
+    icon: resolveDevIcon(),
     webPreferences: {
       preload: resolve(__dirname, '../preload/preload.js'),
       contextIsolation: true,
@@ -39,8 +41,17 @@ function createWindow() {
   else win.loadFile(resolve(__dirname, '../renderer/index.html'))
 }
 
+function resolveDevIcon(): Electron.NativeImage | undefined {
+  // Only matters in dev — packaged builds get the icon from electron-builder.
+  // __dirname is .../out/main, project root is two levels up.
+  const candidate = resolve(__dirname, '../../build/icon-dev.png')
+  return existsSync(candidate) ? nativeImage.createFromPath(candidate) : undefined
+}
+
 app.whenReady().then(() => {
   hydrateShellPath()
+  const devIcon = resolveDevIcon()
+  if (devIcon) app.dock?.setIcon(devIcon)
   if (!checkClaudeBinary()) {
     dialog.showErrorBox(
       'Claude CLI not found',
