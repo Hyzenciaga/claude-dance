@@ -1,16 +1,18 @@
 import { useState, useEffect, useRef, useLayoutEffect } from 'react'
 import * as Select from '@radix-ui/react-select'
-import { Check, ChevronDown, FolderOpen, ArrowUp } from 'lucide-react'
+import { Check, ChevronDown, FolderOpen, ArrowUp, NotebookPen } from 'lucide-react'
 import { useProjects } from '../store/projects'
 
 type Props = {
   cwdLocked?: string
   initialCwd?: string
   onSubmit: (text: string, cwd: string) => void
+  onCutToNotes?: (text: string) => void
   disabled?: boolean
+  prefill?: { text: string; nonce: number } | null
 }
 
-export function Composer({ cwdLocked, initialCwd, onSubmit, disabled }: Props) {
+export function Composer({ cwdLocked, initialCwd, onSubmit, onCutToNotes, disabled, prefill }: Props) {
   const { projects } = useProjects()
   const defaultCwd =
     cwdLocked ??
@@ -35,6 +37,31 @@ export function Composer({ cwdLocked, initialCwd, onSubmit, disabled }: Props) {
     el.style.height = 'auto'
     el.style.height = Math.min(el.scrollHeight, 180) + 'px'
   }, [text])
+
+  // Refill from notes: append to textarea, focus, place caret at end.
+  // Keyed by nonce so re-clicking the same note re-fires.
+  useEffect(() => {
+    if (!prefill) return
+    setText((prev) => {
+      const sep = prev.length > 0 && !prev.endsWith('\n') && !prev.endsWith(' ') ? ' ' : ''
+      return prev + sep + prefill.text
+    })
+    requestAnimationFrame(() => {
+      const el = taRef.current
+      if (!el) return
+      el.focus()
+      const end = el.value.length
+      el.setSelectionRange(end, end)
+    })
+  }, [prefill])
+
+  function cutToNotes() {
+    if (!onCutToNotes) return
+    const t = text.trim()
+    if (!t) return
+    onCutToNotes(t)
+    setText('')
+  }
 
   function submit() {
     if (!text.trim()) return
@@ -141,10 +168,24 @@ export function Composer({ cwdLocked, initialCwd, onSubmit, disabled }: Props) {
             </Select.Root>
           )}
 
-          <div className="flex items-center gap-2">
-            <span className="text-[10.5px] text-fg-faint hidden sm:inline">
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10.5px] text-fg-faint hidden sm:inline mr-1">
               ↵ send · ⇧↵ newline
             </span>
+            {onCutToNotes && (
+              <button
+                onClick={cutToNotes}
+                disabled={!text.trim()}
+                title="Move to notes"
+                aria-label="Move input to notes"
+                className="h-6 w-6 flex items-center justify-center rounded
+                           text-fg-subtle hover:text-fg-default hover:bg-bg-hover
+                           disabled:text-fg-faint disabled:cursor-not-allowed disabled:hover:bg-transparent
+                           transition-colors"
+              >
+                <NotebookPen size={13} strokeWidth={2} />
+              </button>
+            )}
             <button
               onClick={submit}
               disabled={disabled || !text.trim()}
