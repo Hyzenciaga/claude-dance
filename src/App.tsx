@@ -4,6 +4,7 @@ import { Sidebar } from './components/Sidebar'
 import { ChatView } from './components/ChatView'
 import { Composer } from './components/Composer'
 import { NotesPanel } from './components/NotesPanel'
+import { SettingsPage } from './components/SettingsPage'
 import { useChats } from './store/chats'
 import { useEvents } from './store/events'
 import { useNotes } from './store/notes'
@@ -14,6 +15,7 @@ type View =
   | { mode: 'empty' }
   | { mode: 'newChat'; preselectedProject?: string; channelId?: string; sessionId?: string }
   | { mode: 'session'; session: SessionSummary; channelId?: string }
+  | { mode: 'settings' }
 
 export default function App() {
   const [view, setView] = useState<View>({ mode: 'empty' })
@@ -107,9 +109,13 @@ export default function App() {
   const canShowNotes = view.mode !== 'empty' && (notesSessionId !== null || notesProjectPath !== null)
   const showNotesPanel = notesOpen && canShowNotes
 
+  if (view.mode === 'settings') {
+    return <SettingsPage onBack={() => setView({ mode: 'empty' })} />
+  }
+
   return (
     <div className="flex h-full bg-bg-base">
-      <Sidebar onNewChat={newChat} onOpenSession={openSession} />
+      <Sidebar onNewChat={newChat} onOpenSession={openSession} onOpenSettings={() => setView({ mode: 'settings' })} />
       <main className="flex-1 flex flex-col min-h-0 min-w-0">
         {/* drag region + right-side notes toggle */}
         <div className="app-drag h-9 flex-shrink-0 flex items-center justify-end pr-2.5">
