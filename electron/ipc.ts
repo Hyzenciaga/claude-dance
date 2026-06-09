@@ -1,15 +1,16 @@
 import { ipcMain, type BrowserWindow } from 'electron'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import type { Project, SessionSummary, RawEvent, IpcChatEvent, ChatStartRequest, ChatStartResponse } from '@shared/types'
+import type { Project, SessionSummary, RawEvent, ChatStartRequest, ChatStartResponse } from '@shared/types'
 import { scanProjects } from './project-scanner'
 import { listSessions, readSessionEvents } from './session-reader'
 import { readAppData, writeAppData } from './app-data'
+import { startChat, sendUserMessage, stopChat } from './claude-process'
 
 const PROJECTS_DIR = join(homedir(), '.claude', 'projects')
 const APP_DATA_PATH = join(homedir(), '.claudedance', 'projects.json')
 
-export function registerIpc(_win: BrowserWindow): void {
+export function registerIpc(win: BrowserWindow): void {
   ipcMain.handle('projects.list', async (): Promise<Project[]> => {
     return scanProjects({ projectsDir: PROJECTS_DIR, appDataPath: APP_DATA_PATH })
   })
@@ -37,18 +38,16 @@ export function registerIpc(_win: BrowserWindow): void {
     return readSessionEvents(jsonlPath)
   })
 
-  // chat.start / chat.sendMessage / chat.stop added in Task 8
-  ipcMain.handle('chat.start', async (_e, _req: ChatStartRequest): Promise<ChatStartResponse> => {
-    throw new Error('chat.start not implemented yet')
+  ipcMain.handle('chat.start', async (_e, req: ChatStartRequest): Promise<ChatStartResponse> => {
+    const channelId = startChat(win, req)
+    return { channelId }
   })
-  ipcMain.handle('chat.sendMessage', async (_e, _channelId: string, _text: string): Promise<void> => {
-    throw new Error('chat.sendMessage not implemented yet')
-  })
-  ipcMain.handle('chat.stop', async (_e, _channelId: string): Promise<void> => {
-    throw new Error('chat.stop not implemented yet')
-  })
-}
 
-export function sendChatEvent(win: BrowserWindow, evt: IpcChatEvent): void {
-  if (!win.isDestroyed()) win.webContents.send('chat.event', evt)
+  ipcMain.handle('chat.sendMessage', async (_e, channelId: string, text: string): Promise<void> => {
+    sendUserMessage(channelId, text)
+  })
+
+  ipcMain.handle('chat.stop', async (_e, channelId: string): Promise<void> => {
+    stopChat(channelId)
+  })
 }

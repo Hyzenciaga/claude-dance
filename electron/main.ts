@@ -1,6 +1,7 @@
 import { app, BrowserWindow } from 'electron'
 import { resolve } from 'node:path'
 import { registerIpc } from './ipc'
+import { shutdownAll } from './claude-process'
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -24,6 +25,8 @@ app.whenReady().then(() => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
 })
+
+app.on('before-quit', () => shutdownAll())
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
