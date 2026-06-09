@@ -1,5 +1,14 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { Project, SessionSummary, RawEvent, IpcChatEvent, ChatStartRequest, ChatStartResponse } from '@shared/types'
+import type {
+  Project,
+  SessionSummary,
+  RawEvent,
+  IpcChatEvent,
+  ChatStartRequest,
+  ChatStartResponse,
+  NoteItem,
+  NoteScope,
+} from '@shared/types'
 
 const api = {
   listProjects: (): Promise<Project[]> => ipcRenderer.invoke('projects.list'),
@@ -19,6 +28,10 @@ const api = {
     ipcRenderer.on('chat.event', listener)
     return () => ipcRenderer.removeListener('chat.event', listener)
   },
+  readNotes: (scope: NoteScope, key: string): Promise<NoteItem[]> =>
+    ipcRenderer.invoke('notes.read', scope, key),
+  writeNotes: (scope: NoteScope, key: string, items: NoteItem[]): Promise<void> =>
+    ipcRenderer.invoke('notes.write', scope, key, items),
 }
 
 contextBridge.exposeInMainWorld('api', api)

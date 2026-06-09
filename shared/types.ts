@@ -41,3 +41,11 @@ export type IpcChatEvent =
   | { kind: 'event'; channelId: ChannelId; event: RawEvent }
   | { kind: 'exit'; channelId: ChannelId; code: number | null }
   | { kind: 'error'; channelId: ChannelId; message: string }
+
+export type NoteScope = 'session' | 'project'
+
+export type NoteItem = {
+  id: string
+  done: boolean
+  text: string
+}

@@ -6,9 +6,17 @@ import { scanProjects } from './project-scanner'
 import { listSessions, readSessionEvents } from './session-reader'
 import { readAppData, writeAppData } from './app-data'
 import { startChat, sendUserMessage, stopChat } from './claude-process'
+import {
+  readNotes,
+  writeNotes,
+  notesFilePath,
+  type NoteItem,
+  type NoteScope,
+} from './notes-store'
 
 const PROJECTS_DIR = join(homedir(), '.claude', 'projects')
 const APP_DATA_PATH = join(homedir(), '.claudedance', 'projects.json')
+const NOTES_ROOT = join(homedir(), '.claudedance', 'notes')
 
 export function registerIpc(win: BrowserWindow): void {
   ipcMain.handle('projects.list', async (): Promise<Project[]> => {
@@ -50,4 +58,18 @@ export function registerIpc(win: BrowserWindow): void {
   ipcMain.handle('chat.stop', async (_e, channelId: string): Promise<void> => {
     stopChat(channelId)
   })
+
+  ipcMain.handle(
+    'notes.read',
+    async (_e, scope: NoteScope, key: string): Promise<NoteItem[]> => {
+      return readNotes(notesFilePath({ root: NOTES_ROOT, scope, key }))
+    },
+  )
+
+  ipcMain.handle(
+    'notes.write',
+    async (_e, scope: NoteScope, key: string, items: NoteItem[]): Promise<void> => {
+      await writeNotes(notesFilePath({ root: NOTES_ROOT, scope, key }), items)
+    },
+  )
 }
