@@ -1,7 +1,8 @@
 import { useEffect, useState, useRef, useLayoutEffect } from 'react'
 import {
   PanelRightOpen, PanelRightClose,
-  Plus, ArrowUp, Paperclip, Code2, Gauge, ChevronDown, Check, FolderOpen,
+  Plus, ArrowUp, Paperclip, Code2, Gauge, ChevronDown, Check,
+  FolderOpen, FolderPlus, FolderSearch, Search, Clock,
 } from 'lucide-react'
 import { Sidebar } from './components/Sidebar'
 import { ChatView } from './components/ChatView'
@@ -357,24 +358,127 @@ function WelcomeComposer({
         </div>
 
         {/* Project selector below the input box */}
-        <div className="mt-2.5 px-1">
-          <div className="flex items-center gap-1.5">
-            <FolderOpen size={12} className="text-fg-subtle shrink-0" />
-            <select
-              value={cwd}
-              onChange={(e) => setCwd(e.target.value)}
-              className="text-[12px] font-mono text-fg-subtle bg-transparent border-none
-                         cursor-pointer hover:text-fg-default truncate"
-              title={cwd}
-            >
-              {projects.filter((p) => !p.hidden).map((p) => (
-                <option key={p.path} value={p.path}>{p.path.split('/').pop()}</option>
+        <ProjectPicker
+          cwd={cwd}
+          projects={projects.filter((p) => !p.hidden)}
+          onSelect={(path) => setCwd(path)}
+        />
+      </div>
+    </div>
+  )
+}
+
+function ProjectPicker({
+  cwd,
+  projects,
+  onSelect,
+}: {
+  cwd: string
+  projects: { path: string; lastActiveAt: number }[]
+  onSelect: (path: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    function onClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', onClick)
+    return () => document.removeEventListener('mousedown', onClick)
+  }, [open])
+
+  const cwdLabel = cwd.split('/').pop() || cwd || 'Select project'
+  const recent = [...projects].sort((a, b) => b.lastActiveAt - a.lastActiveAt).slice(0, 3)
+
+  return (
+    <div className="relative mt-1" ref={ref}>
+      {/* Trigger button — sits in a subtle shadow strip */}
+      <div className="rounded-b-xl bg-gradient-to-b from-transparent to-bg-panel/60 px-1 pt-1.5 pb-1">
+        <button
+          onClick={() => { setOpen((o) => !o); setSearch('') }}
+          className="flex items-center gap-1.5 px-2 py-1 rounded-md
+                     text-[12px] text-fg-subtle hover:text-fg-default hover:bg-bg-hover
+                     transition-colors"
+        >
+          <FolderOpen size={12} className="shrink-0" />
+          <span className="font-mono truncate max-w-[240px]">{cwdLabel}</span>
+          <ChevronDown size={10} className={'opacity-60 transition-transform ' + (open ? 'rotate-180' : '')} />
+        </button>
+      </div>
+
+      {/* Dropdown */}
+      {open && (
+        <div className="absolute left-0 top-full mt-1 w-72 bg-bg-inset border border-line
+                        rounded-lg shadow-xl overflow-hidden z-50">
+          {/* Search */}
+          <div className="px-2 py-2 border-b border-line">
+            <div className="relative">
+              <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-fg-subtle" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search projects..."
+                autoFocus
+                className="w-full h-7 pl-7 pr-2 rounded-md bg-bg-base border border-line
+                           text-[12px] placeholder:text-fg-subtle"
+              />
+            </div>
+          </div>
+
+          {/* Recent projects */}
+          <div className="px-1.5 py-1.5">
+            <div className="flex items-center gap-1.5 px-2 py-1 text-[10px] uppercase tracking-[0.06em] text-fg-faint font-medium">
+              <Clock size={10} />
+              Recent
+            </div>
+            {recent
+              .filter((p) => !search || p.path.toLowerCase().includes(search.toLowerCase()))
+              .map((p) => (
+                <button
+                  key={p.path}
+                  onClick={() => { onSelect(p.path); setOpen(false) }}
+                  className={'w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left ' +
+                    'text-[12px] transition-colors ' +
+                    (p.path === cwd
+                      ? 'bg-accent-subtle text-fg-default'
+                      : 'text-fg-muted hover:bg-bg-hover hover:text-fg-default')}
+                >
+                  <FolderOpen size={11} className="text-fg-subtle shrink-0" />
+                  <span className="font-mono truncate">{p.path.split('/').pop()}</span>
+                  {p.path === cwd && <Check size={11} className="ml-auto text-accent shrink-0" />}
+                </button>
               ))}
-            </select>
-            <ChevronDown size={10} className="text-fg-faint -ml-0.5" />
+            {recent.length === 0 && (
+              <div className="px-2 py-2 text-[11px] text-fg-faint">No recent projects</div>
+            )}
+          </div>
+
+          {/* Add new project */}
+          <div className="border-t border-line px-1.5 py-1.5">
+            <div className="flex items-center gap-1.5 px-2 py-1 text-[10px] uppercase tracking-[0.06em] text-fg-faint font-medium">
+              <FolderPlus size={10} />
+              Add project
+            </div>
+            <button
+              className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left
+                         text-[12px] text-fg-muted hover:bg-bg-hover hover:text-fg-default transition-colors"
+            >
+              <Plus size={11} className="text-fg-subtle" />
+              New blank project
+            </button>
+            <button
+              className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left
+                         text-[12px] text-fg-muted hover:bg-bg-hover hover:text-fg-default transition-colors"
+            >
+              <FolderSearch size={11} className="text-fg-subtle" />
+              Choose existing folder
+            </button>
           </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }
