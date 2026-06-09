@@ -47,7 +47,7 @@ export default function App() {
 
   async function handleNewChatSubmit(text: string, cwd: string) {
     const channelId = await chats.startNew(cwd, text)
-    setView((v) => (v.mode === 'newChat' ? { ...v, channelId } : v))
+    setView({ mode: 'newChat', channelId })
   }
 
   async function handleResumeSubmit(text: string, cwd: string, session: SessionSummary) {
@@ -156,10 +156,7 @@ export default function App() {
         {(view.mode === 'empty' || (view.mode === 'newChat' && !view.channelId)) && (
           <WelcomeComposer
             initialCwd={view.mode === 'newChat' ? view.preselectedProject : undefined}
-            onSubmit={(text, cwd) => {
-              if (view.mode === 'empty') newChat()
-              handleNewChatSubmit(text, cwd)
-            }}
+            onSubmit={handleNewChatSubmit}
           />
         )}
 
