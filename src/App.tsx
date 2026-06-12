@@ -1,19 +1,25 @@
-import { useEffect, useState, useRef, useLayoutEffect } from 'react'
+import { useEffect, useState, useRef, useLayoutEffect, useMemo } from 'react'
 import {
-  PanelRightOpen, PanelRightClose,
   Plus, ArrowUp, Paperclip, Code2, Gauge, ChevronDown, Check,
   FolderOpen, FolderPlus, FolderSearch, Search, Clock,
 } from 'lucide-react'
+import logoUrl from './assets/logo.png'
 import { Sidebar } from './components/Sidebar'
 import { ChatView } from './components/ChatView'
+import { ChatHeader } from './components/ChatHeader'
 import { Composer } from './components/Composer'
+import { SlashMenu } from './components/SlashMenu'
 import { NotesPanel } from './components/NotesPanel'
 import { SettingsPage } from './components/SettingsPage'
+import { PermissionModeSelector } from './components/PermissionModeSelector'
+import { RewindDialog } from './components/RewindDialog'
+import { toSlashCommands, filterCommands } from './lib/slash-commands'
 import { useChats } from './store/chats'
 import { useEvents } from './store/events'
 import { useNotes } from './store/notes'
 import { useProjects } from './store/projects'
 import { useSessions } from './store/sessions'
+import { api } from './lib/api'
 import type { SessionSummary } from '@shared/types'
 
 type View =
@@ -25,42 +31,63 @@ type View =
 export default function App() {
   const [view, setView] = useState<View>({ mode: 'empty' })
   const [notesOpen, setNotesOpen] = useState(false)
-  const [composerPrefill, setComposerPrefill] = useState<{ text: string; nonce: number } | null>(null)
+  const [composerPrefill, setComposerPrefill] = useState<{ text: string; nonce: number; replace?: boolean } | null>(null)
+  const [rewindOpen, setRewindOpen] = useState(false)
+  const [permModeByKey, setPermModeByKey] = useState<Record<string, string>>({})
+  const draftsRef = useRef<Record<string, string>>({})
   const { selectSession } = useSessions()
-  const { loadFromFile } = useEvents()
+  const { loadSession } = useEvents()
   const chats = useChats()
 
   useEffect(() => {
     chats.init()
   }, [chats])
 
-  function openSession(s: SessionSummary) {
+  useEffect(() => {
+    if (Notification.permission === 'default') {
+      api().requestNotificationPermission()
+    }
+  }, [])
+
+  async function openSession(s: SessionSummary) {
     selectSession(s.id)
-    loadFromFile(s.id, s.jsonlPath)
+    loadSession(s.id, s.projectPath)
     const ch = chats.channelBySession[s.id]
     if (ch) chats.markViewing(ch)
     setView({ mode: 'session', session: s })
+    const storedMode = await api().getSessionPermissionMode(s.id)
+    if (storedMode) setPermModeByKey((prev) => ({ ...prev, [s.id]: storedMode }))
   }
 
   function newChat(projectPath?: string) {
+    const cwd =
+      projectPath ??
+      (view.mode === 'session' ? view.session.projectPath : undefined)
     selectSession(null)
-    setView({ mode: 'newChat', preselectedProject: projectPath })
+    setView({ mode: 'newChat', preselectedProject: cwd })
   }
 
-  async function handleNewChatSubmit(text: string, cwd: string) {
-    const channelId = await chats.startNew(cwd, text)
+  async function handleNewChatSubmit(text: string, cwd: string, permissionMode?: string) {
+    const cmd = text.trim().split(/\s/)[0].toLowerCase()
+    if (cmd === '/config' || cmd === '/settings') {
+      setView({ mode: 'settings' })
+      return
+    }
+    const channelId = await chats.startNew(cwd, text, permissionMode)
     chats.markViewing(channelId)
     setView({ mode: 'newChat', channelId })
   }
 
-  async function handleResumeSubmit(text: string, cwd: string, session: SessionSummary) {
+  async function handleResumeSubmit(text: string, cwd: string, session: SessionSummary, permissionMode?: string) {
     const existing = chats.channelBySession[session.id]
     const existingChat = existing ? chats.chats[existing] : undefined
     if (existingChat && existingChat.status === 'running') {
-      await chats.send(existing, text)
+      const result = await chats.send(existing, text)
+      if (result?.navigate === 'settings') setView({ mode: 'settings' })
+      if (result?.navigate === 'rewind') setRewindOpen(true)
       return
     }
-    const channelId = await chats.resume(cwd, session.id, text)
+    const channelId = await chats.resume(cwd, session.id, text, permissionMode)
     setView((v) => (v.mode === 'session' ? { ...v, channelId } : v))
   }
 
@@ -71,6 +98,9 @@ export default function App() {
         ? view.channelId ?? chats.channelBySession[view.session.id]
         : undefined
   const chatState = channelId ? chats.chats[channelId] : undefined
+
+  const permKey = view.mode === 'session' ? view.session.id : (channelId ?? 'new')
+  const activePermMode = permModeByKey[permKey] ?? chatState?.permissionMode ?? 'auto'
 
   // sessionId for ChatView (fallback to channelId for the brief window before CLI reveals it)
   const chatViewSessionId =
@@ -105,6 +135,22 @@ export default function App() {
     if (!notesOpen && (notesSessionId || notesProjectPath)) setNotesOpen(true)
   }
 
+  useEffect(() => {
+    const hasContext = notesSessionId !== null || notesProjectPath !== null
+    if (!hasContext) return
+    async function check() {
+      if (notesSessionId) await useNotes.getState().load('session', notesSessionId)
+      if (notesProjectPath) await useNotes.getState().load('project', notesProjectPath)
+      const state = useNotes.getState()
+      const sItems = notesSessionId ? state.items[`session:${notesSessionId}`] ?? [] : []
+      const pItems = notesProjectPath ? state.items[`project:${notesProjectPath}`] ?? [] : []
+      if (sItems.some((i) => !i.done) || pItems.some((i) => !i.done)) {
+        setNotesOpen(true)
+      }
+    }
+    check()
+  }, [notesSessionId, notesProjectPath])
+
   const composerCutHandler =
     notesSessionId || notesProjectPath ? handleCutToNotes : undefined
 
@@ -113,12 +159,18 @@ export default function App() {
     if (channelId) chats.stop(channelId)
   }
 
-  // Derive running + unread sessions/projects for breathing dots
+  // Derive running + unread + permission sessions/projects for breathing dots
   const runningSessionIds = new Set<string>()
   const runningProjectPaths = new Set<string>()
   const unreadSessionIds = new Set<string>()
   const unreadProjectPaths = new Set<string>()
+  const permissionSessionIds = new Set<string>()
+  const permissionProjectPaths = new Set<string>()
   for (const c of Object.values(chats.chats)) {
+    if (c.pendingPermission) {
+      if (c.sessionId) permissionSessionIds.add(c.sessionId)
+      if (c.cwd) permissionProjectPaths.add(c.cwd)
+    }
     if (c.status === 'running') {
       if (c.sessionId) runningSessionIds.add(c.sessionId)
       if (c.cwd) runningProjectPaths.add(c.cwd)
@@ -134,7 +186,7 @@ export default function App() {
   const showNotesPanel = notesOpen && canShowNotes
 
   if (view.mode === 'settings') {
-    return <SettingsPage onBack={() => setView({ mode: 'empty' })} />
+    return <SettingsPage onBack={() => setView({ mode: 'empty' })} channelId={channelId ?? undefined} projectDir={chatState?.cwd} />
   }
 
   return (
@@ -147,55 +199,130 @@ export default function App() {
         runningProjectPaths={runningProjectPaths}
         unreadSessionIds={unreadSessionIds}
         unreadProjectPaths={unreadProjectPaths}
+        permissionSessionIds={permissionSessionIds}
+        permissionProjectPaths={permissionProjectPaths}
+        autoExpandPath={
+          view.mode === 'session' ? view.session.projectPath :
+          view.mode === 'newChat' ? (chatState?.cwd ?? view.preselectedProject) :
+          undefined
+        }
       />
-      <main className="flex-1 flex flex-col min-h-0 min-w-0">
-        {/* drag region + right-side notes toggle */}
-        <div className="app-drag h-9 flex-shrink-0 flex items-center justify-end pr-2.5">
-          {canShowNotes && (
-            <button
-              onClick={() => setNotesOpen((o) => !o)}
-              className="app-no-drag h-7 w-7 flex items-center justify-center rounded
-                         text-fg-subtle hover:text-fg-default hover:bg-bg-hover transition-colors"
-              title={notesOpen ? 'Hide notes' : 'Show notes'}
-              aria-label={notesOpen ? 'Hide notes panel' : 'Show notes panel'}
-            >
-              {notesOpen ? <PanelRightClose size={14} /> : <PanelRightOpen size={14} />}
-            </button>
-          )}
-        </div>
-
+      <main className="flex-1 flex flex-col min-h-0 min-w-0 bg-bg-base rounded-l-2xl z-10 panel-float">
         {(view.mode === 'empty' || (view.mode === 'newChat' && !view.channelId)) && (
-          <WelcomeComposer
-            initialCwd={view.mode === 'newChat' ? view.preselectedProject : undefined}
-            onSubmit={handleNewChatSubmit}
-          />
+          <>
+            <div className="app-drag h-9 flex-shrink-0" />
+            <WelcomeComposer
+              initialCwd={view.mode === 'newChat' ? view.preselectedProject : undefined}
+              onSubmit={handleNewChatSubmit}
+            />
+          </>
         )}
 
         {view.mode === 'newChat' && view.channelId && (
           <>
-            <ChatView sessionId={chatViewSessionId} status={chatState?.status} error={chatState?.error} />
+            <ChatHeader
+              projectPath={chatState?.cwd}
+              notesOpen={notesOpen}
+              canShowNotes={canShowNotes}
+              onToggleNotes={() => setNotesOpen((o) => !o)}
+            />
+            <ChatView
+              sessionId={chatViewSessionId}
+              status={chatState?.status}
+              error={chatState?.error}
+              pendingPermission={chatState?.pendingPermission}
+              onPermissionRespond={channelId ? (allowed, mode) => chats.respondPermission(channelId, allowed, mode) : undefined}
+              pendingQuestion={chatState?.pendingQuestion}
+              onQuestionRespond={channelId ? (result) => chats.respondQuestion(channelId, result) : undefined}
+              onRewind={channelId ? (uid?: string) => chats.rewind(channelId, uid) : undefined}
+              onEditResend={(text) => setComposerPrefill({ text, nonce: Date.now(), replace: true })}
+            />
             <Composer
+              key={channelId ?? 'new'}
               cwdLocked={chatState?.cwd}
-              onSubmit={(text, cwd) => handleNewChatSubmit(text, cwd)}
-              disabled={chatState?.status !== 'running' && chatState?.status !== undefined}
+              onSubmit={async (text, _cwd) => {
+                if (channelId && chatState) {
+                  const result = await chats.send(channelId, text)
+                  if (result?.navigate === 'settings') setView({ mode: 'settings' })
+                  if (result?.navigate === 'rewind') setRewindOpen(true)
+                } else {
+                  handleNewChatSubmit(text, _cwd)
+                }
+              }}
+              disabled={chatState?.status === 'exited' || chatState?.status === 'error'}
               running={isRunning}
               onStop={handleStop}
               prefill={composerPrefill}
               onCutToNotes={composerCutHandler}
+              availableCommands={chatState?.availableCommands ?? chats.cachedCommands}
+              channelId={channelId ?? undefined}
+              model={chatState?.model}
+              permissionMode={activePermMode}
+              onPermissionModeChange={(mode) => {
+                setPermModeByKey((prev) => ({ ...prev, [permKey]: mode }))
+                if (channelId && chats.chats[channelId]) {
+                  useChats.setState((s) => ({
+                    chats: { ...s.chats, [channelId]: { ...s.chats[channelId], permissionMode: mode } },
+                  }))
+                }
+              }}
+              initialDraft={draftsRef.current[channelId ?? 'new']}
+              onDraftChange={(t) => { draftsRef.current[channelId ?? 'new'] = t }}
             />
           </>
         )}
 
         {view.mode === 'session' && (
           <>
-            <ChatView sessionId={view.session.id} status={chatState?.status} error={chatState?.error} />
+            <ChatHeader
+              projectPath={view.session.projectPath}
+              sessionTitle={view.session.title}
+              notesOpen={notesOpen}
+              canShowNotes={canShowNotes}
+              onToggleNotes={() => setNotesOpen((o) => !o)}
+            />
+            <ChatView
+              sessionId={view.session.id}
+              status={chatState?.status}
+              error={chatState?.error}
+              pendingPermission={chatState?.pendingPermission}
+              onPermissionRespond={channelId ? (allowed, mode) => chats.respondPermission(channelId, allowed, mode) : undefined}
+              pendingQuestion={chatState?.pendingQuestion}
+              onQuestionRespond={channelId ? (result) => chats.respondQuestion(channelId, result) : undefined}
+              onRewind={channelId ? (uid?: string) => chats.rewind(channelId, uid) : undefined}
+              onEditResend={(text) => setComposerPrefill({ text, nonce: Date.now(), replace: true })}
+            />
             <Composer
+              key={view.session.id}
               cwdLocked={view.session.projectPath}
-              onSubmit={(text, cwd) => handleResumeSubmit(text, cwd, view.session)}
+              onSubmit={async (text, cwd) => {
+                if (channelId && chatState) {
+                  const result = await chats.send(channelId, text)
+                  if (result?.navigate === 'settings') setView({ mode: 'settings' })
+                  if (result?.navigate === 'rewind') setRewindOpen(true)
+                } else {
+                  handleResumeSubmit(text, cwd, view.session, activePermMode !== 'default' ? activePermMode : undefined)
+                }
+              }}
               running={isRunning}
               onStop={handleStop}
               prefill={composerPrefill}
               onCutToNotes={composerCutHandler}
+              availableCommands={chatState?.availableCommands ?? chats.cachedCommands}
+              channelId={channelId ?? undefined}
+              model={chatState?.model}
+              permissionMode={activePermMode}
+              onPermissionModeChange={(mode) => {
+                setPermModeByKey((prev) => ({ ...prev, [permKey]: mode }))
+                if (channelId && chats.chats[channelId]) {
+                  useChats.setState((s) => ({
+                    chats: { ...s.chats, [channelId]: { ...s.chats[channelId], permissionMode: mode } },
+                  }))
+                }
+                api().setSessionPermissionMode(view.session.id, mode).catch(() => {})
+              }}
+              initialDraft={draftsRef.current[view.session.id]}
+              onDraftChange={(t) => { draftsRef.current[view.session.id] = t }}
             />
           </>
         )}
@@ -208,6 +335,38 @@ export default function App() {
           onRefill={handleRefill}
         />
       )}
+
+      {rewindOpen && (() => {
+        const sessionId =
+          view.mode === 'session' ? view.session.id :
+          chatState?.sessionId ?? null
+        const projectPath =
+          view.mode === 'session' ? view.session.projectPath :
+          chatState?.cwd ?? null
+        if (!sessionId || !projectPath) {
+          setRewindOpen(false)
+          return null
+        }
+        return (
+          <RewindDialog
+            sessionId={sessionId}
+            projectPath={projectPath}
+            channelId={channelId}
+            onClose={() => setRewindOpen(false)}
+            onForked={(newSessionId) => {
+              setRewindOpen(false)
+              // The store already called selectSession + reloadFor; find the session and open it
+              useSessions.getState().reloadFor(projectPath)
+              // Brief delay to let reloadFor populate sidebar, then navigate
+              setTimeout(() => {
+                const sessions = useSessions.getState().sessionsByProject[projectPath] ?? []
+                const forked = sessions.find((s) => s.id === newSessionId)
+                if (forked) openSession(forked)
+              }, 500)
+            }}
+          />
+        )
+      })()}
     </div>
   )
 }
@@ -217,7 +376,7 @@ function WelcomeComposer({
   onSubmit,
 }: {
   initialCwd?: string
-  onSubmit: (text: string, cwd: string) => void
+  onSubmit: (text: string, cwd: string, permissionMode?: string) => void
 }) {
   const { projects } = useProjects()
   const defaultCwd =
@@ -231,13 +390,24 @@ function WelcomeComposer({
   const [effort, setEffort] = useState<'low' | 'medium' | 'high'>('high')
   const [effortOpen, setEffortOpen] = useState(false)
   const [devMode, setDevMode] = useState(false)
+  const [permMode, setPermMode] = useState<string>('default')
+  const [slashQuery, setSlashQuery] = useState<string | null>(null)
+  const [slashIndex, setSlashIndex] = useState(0)
   const taRef = useRef<HTMLTextAreaElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const effortRef = useRef<HTMLDivElement>(null)
   const composingRef = useRef(false)
 
+  const { cachedCommands } = useChats()
+  const allCommands = useMemo(() => toSlashCommands(cachedCommands), [cachedCommands])
+  const slashResults = useMemo(
+    () => (slashQuery !== null ? filterCommands(slashQuery, allCommands) : []),
+    [slashQuery, allCommands],
+  )
+  const slashOpen = slashQuery !== null && slashResults.length > 0
+
   useEffect(() => {
-    if (!initialCwd) setCwd(defaultCwd)
+    setCwd(defaultCwd)
   }, [initialCwd, defaultCwd])
 
   useLayoutEffect(() => {
@@ -261,7 +431,7 @@ function WelcomeComposer({
     if (!text.trim()) return
     const effective = cwd || defaultCwd
     if (!effective) return
-    onSubmit(text, effective)
+    onSubmit(text, effective, permMode !== 'default' ? permMode : undefined)
     setText('')
   }
 
@@ -270,21 +440,101 @@ function WelcomeComposer({
   return (
     <div className="flex-1 flex flex-col items-center justify-center px-6">
       <div className="w-full max-w-2xl">
-        <h1 className="text-[22px] font-semibold text-fg-default text-center mb-6">
-          What can I help you with?
-        </h1>
+        <div className="flex flex-col items-center mb-6">
+          {/* Logo with ambient symbols */}
+          <div className="relative mb-4">
+            {/* ✦ top-right */}
+            <span
+              className="symbol-a absolute -top-3 -right-4 text-[16px] select-none pointer-events-none"
+              style={{ color: 'var(--color-accent, #f97316)' }}
+            >✦</span>
+            {/* ♪ bottom-left */}
+            <span
+              className="symbol-b absolute -bottom-2 -left-5 text-[14px] select-none pointer-events-none"
+              style={{ color: 'var(--color-accent, #f97316)', opacity: 0.6 }}
+            >♪</span>
+            {/* ✧ top-left */}
+            <span
+              className="symbol-c absolute -top-1 -left-4 text-[14px] leading-none select-none pointer-events-none"
+              style={{ color: 'var(--color-accent, #f97316)', opacity: 0.5 }}
+            >✧</span>
+            <img
+              src={logoUrl}
+              alt="ClaudeDance"
+              className="logo-float w-16 h-16 rounded-2xl"
+              draggable={false}
+            />
+          </div>
+          <h1 className="text-[22px] font-semibold text-fg-default text-center">
+            What can I help you with?
+          </h1>
+        </div>
 
-        <div className="rounded-xl bg-bg-inset border border-line/80 focus-within:border-line-strong transition-colors shadow-sm">
+        <div className="relative rounded-2xl bg-bg-inset border border-line/80 focus-within:border-line-strong transition-colors shadow-sm">
+          {slashOpen && (
+            <SlashMenu
+              commands={slashResults}
+              activeIndex={slashIndex}
+              onSelect={(cmd) => {
+                setText(cmd.command + ' ')
+                setSlashQuery(null)
+                taRef.current?.focus()
+              }}
+            />
+          )}
           <textarea
             ref={taRef}
             value={text}
-            onChange={(e) => setText(e.target.value)}
+            onChange={(e) => {
+              const val = e.target.value
+              setText(val)
+              if (val.startsWith('/')) {
+                const q = val.slice(1).split(/\s/)[0]
+                if (val.indexOf(' ') === -1) {
+                  setSlashQuery(q)
+                  setSlashIndex(0)
+                } else {
+                  setSlashQuery(null)
+                }
+              } else {
+                setSlashQuery(null)
+              }
+            }}
             onCompositionStart={() => { composingRef.current = true }}
             onCompositionEnd={() => { requestAnimationFrame(() => { composingRef.current = false }) }}
             onKeyDown={(e) => {
+              if (slashOpen) {
+                if (e.key === 'ArrowDown') {
+                  e.preventDefault()
+                  setSlashIndex((i) => (i + 1) % slashResults.length)
+                  return
+                }
+                if (e.key === 'ArrowUp') {
+                  e.preventDefault()
+                  setSlashIndex((i) => (i - 1 + slashResults.length) % slashResults.length)
+                  return
+                }
+                if (e.key === 'Tab') {
+                  e.preventDefault()
+                  const cmd = slashResults[slashIndex]
+                  if (cmd) { setText(cmd.command + ' '); setSlashQuery(null) }
+                  return
+                }
+                if (e.key === 'Escape') {
+                  e.preventDefault()
+                  setSlashQuery(null)
+                  return
+                }
+              }
               if (e.key !== 'Enter') return
               const native = e.nativeEvent as KeyboardEvent
               if (composingRef.current || native.isComposing || native.keyCode === 229) return
+              if (slashOpen) {
+                e.preventDefault()
+                const cmd = slashResults[slashIndex]
+                if (cmd) { setText(cmd.command + ' '); setSlashQuery(null) }
+                return
+              }
               if (e.shiftKey) return
               e.preventDefault()
               submit()
@@ -296,7 +546,7 @@ function WelcomeComposer({
           />
 
           <div className="flex items-center justify-between px-3 py-2 border-t border-line/50">
-            {/* Left: + menu */}
+            {/* Left: + menu + permission mode */}
             <div className="flex items-center gap-2">
               <div className="relative" ref={menuRef}>
                 <button
@@ -310,7 +560,7 @@ function WelcomeComposer({
                 </button>
                 {menuOpen && (
                   <div className="absolute bottom-full left-0 mb-2 w-52 bg-bg-inset border border-line
-                                  rounded-lg shadow-lg overflow-hidden z-50">
+                                  rounded-xl shadow-lg overflow-hidden z-50">
                     <button className="w-full flex items-center gap-2.5 px-3 py-2 text-[12.5px]
                                        text-fg-muted hover:bg-bg-hover hover:text-fg-default text-left transition-colors">
                       <Paperclip size={13} className="text-fg-subtle" />
@@ -333,6 +583,10 @@ function WelcomeComposer({
                   </div>
                 )}
               </div>
+              <PermissionModeSelector
+                currentMode={permMode}
+                onLocalChange={setPermMode}
+              />
             </div>
 
             {/* Right: effort selector + send */}
@@ -340,7 +594,7 @@ function WelcomeComposer({
               <div className="relative" ref={effortRef}>
                 <button
                   onClick={() => setEffortOpen((o) => !o)}
-                  className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium
+                  className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-medium
                              text-fg-subtle hover:text-fg-default hover:bg-bg-hover transition-colors"
                 >
                   <Gauge size={12} />
@@ -349,7 +603,7 @@ function WelcomeComposer({
                 </button>
                 {effortOpen && (
                   <div className="absolute top-full right-0 mt-2 w-36 bg-bg-inset border border-line
-                                  rounded-lg shadow-lg overflow-hidden z-50">
+                                  rounded-xl shadow-lg overflow-hidden z-50">
                     {(['low', 'medium', 'high'] as const).map((e) => (
                       <button
                         key={e}
@@ -384,7 +638,7 @@ function WelcomeComposer({
         {/* Project selector below the input box */}
         <ProjectPicker
           cwd={cwd}
-          projects={projects.filter((p) => !p.hidden)}
+          projects={projects.filter((p) => !p.hidden && !p.archived)}
           onSelect={(path) => setCwd(path)}
         />
       </div>
@@ -420,7 +674,7 @@ function ProjectPicker({
   return (
     <div className="relative mt-1" ref={ref}>
       {/* Trigger button — sits in a subtle shadow strip */}
-      <div className="rounded-b-xl bg-gradient-to-b from-transparent to-bg-panel/60 px-1 pt-1.5 pb-1">
+      <div className="rounded-b-2xl bg-gradient-to-b from-transparent to-bg-panel/60 px-1 pt-1.5 pb-1">
         <button
           onClick={() => { setOpen((o) => !o); setSearch('') }}
           className="flex items-center gap-1.5 px-2 py-1 rounded-md
@@ -436,7 +690,7 @@ function ProjectPicker({
       {/* Dropdown */}
       {open && (
         <div className="absolute left-0 top-full mt-1 w-72 bg-bg-inset border border-line
-                        rounded-lg shadow-xl overflow-hidden z-50">
+                        rounded-xl shadow-xl overflow-hidden z-50">
           {/* Search */}
           <div className="px-2 py-2 border-b border-line">
             <div className="relative">
@@ -446,7 +700,7 @@ function ProjectPicker({
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search projects..."
                 autoFocus
-                className="w-full h-7 pl-7 pr-2 rounded-md bg-bg-base border border-line
+                className="w-full h-7 pl-7 pr-2 rounded-lg bg-bg-base border border-line
                            text-[12px] placeholder:text-fg-subtle"
               />
             </div>
@@ -464,7 +718,7 @@ function ProjectPicker({
                 <button
                   key={p.path}
                   onClick={() => { onSelect(p.path); setOpen(false) }}
-                  className={'w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left ' +
+                  className={'w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left ' +
                     'text-[12px] transition-colors ' +
                     (p.path === cwd
                       ? 'bg-accent-subtle text-fg-default'
@@ -487,14 +741,22 @@ function ProjectPicker({
               Add project
             </div>
             <button
-              className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left
+              className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left
                          text-[12px] text-fg-muted hover:bg-bg-hover hover:text-fg-default transition-colors"
             >
               <Plus size={11} className="text-fg-subtle" />
               New blank project
             </button>
             <button
-              className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left
+              onClick={async () => {
+                const path = await api().pickFolder()
+                if (!path) return
+                await api().addProject(path)
+                useProjects.getState().load()
+                onSelect(path)
+                setOpen(false)
+              }}
+              className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left
                          text-[12px] text-fg-muted hover:bg-bg-hover hover:text-fg-default transition-colors"
             >
               <FolderSearch size={11} className="text-fg-subtle" />

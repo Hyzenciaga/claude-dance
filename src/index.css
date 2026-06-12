@@ -43,13 +43,14 @@ input, textarea, select, button {
   color: inherit;
 }
 textarea, input { outline: none; }
+textarea { scrollbar-width: none; -ms-overflow-style: none; }
+textarea::-webkit-scrollbar { display: none; }
 
-:focus-visible {
-  outline: 2px solid #c2410c;
-  outline-offset: 1px;
-  border-radius: 4px;
+:focus-visible { outline: none; }
+
+.panel-float {
+  box-shadow: -6px 0 20px rgba(0, 0, 0, 0.06);
 }
-:focus:not(:focus-visible) { outline: none; }
 
 ::selection { background: #fed7aa; color: #1f1f1e; }
 
@@ -67,3 +68,45 @@ textarea, input { outline: none; }
 }
 .breathing-dot--thinking { background: #3b82f6; }
 .breathing-dot--unread { background: #22c55e; animation-duration: 3s; }
+.breathing-dot--permission { background: #ef4444; animation-duration: 1.2s; }
+
+/* Welcome logo float animation */
+@keyframes logo-float {
+  0%, 100% { transform: translateY(0px) scale(1); }
+  50% { transform: translateY(-6px) scale(1.03); }
+}
+.logo-float {
+  animation: logo-float 4s ease-in-out infinite;
+}
+
+/* Ambient symbol drift animations */
+@keyframes symbol-a {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); opacity: 0.5; }
+  33% { transform: translate(3px, -5px) rotate(15deg); opacity: 0.9; }
+  66% { transform: translate(-2px, -2px) rotate(-8deg); opacity: 0.6; }
+}
+@keyframes symbol-b {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); opacity: 0.4; }
+  40% { transform: translate(-4px, -4px) rotate(-12deg); opacity: 0.85; }
+  70% { transform: translate(2px, 2px) rotate(6deg); opacity: 0.55; }
+}
+@keyframes symbol-c {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); opacity: 0.45; }
+  50% { transform: translate(4px, 3px) rotate(20deg); opacity: 0.8; }
+}
+.symbol-a { animation: symbol-a 5s ease-in-out infinite; }
+.symbol-b { animation: symbol-b 6.5s ease-in-out infinite; animation-delay: -2s; }
+.symbol-c { animation: symbol-c 5.8s ease-in-out infinite; animation-delay: -1.2s; }
+
+/* Thinking star for AI processing indicator */
+@keyframes thinking-pulse {
+  0%, 100% { opacity: 1; transform: rotate(0deg) scale(1); }
+  25% { opacity: 0.7; transform: rotate(90deg) scale(0.85); }
+  50% { opacity: 0.4; transform: rotate(180deg) scale(0.75); }
+  75% { opacity: 0.7; transform: rotate(270deg) scale(0.85); }
+}
+.thinking-star {
+  display: inline-block;
+  color: #3b82f6;
+  animation: thinking-pulse 2s ease-in-out infinite;
+}

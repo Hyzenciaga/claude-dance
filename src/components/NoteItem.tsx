@@ -1,24 +1,88 @@
-import { useState } from 'react'
-import { Trash2, CornerUpLeft, ArrowRightToLine } from 'lucide-react'
+import { useState, useRef, useEffect, forwardRef } from 'react'
+import { Trash2, CornerUpLeft, ArrowRightToLine, GripVertical, ChevronRight } from 'lucide-react'
 import type { NoteItem as Item } from '@shared/types'
 
 type Props = {
   item: Item
+  depth?: 0 | 1
+  hasChildren?: boolean
+  collapsed?: boolean
+  isDragging?: boolean
+  isNestTarget?: boolean
   onToggle: () => void
   onDelete: () => void
   onRefill: () => void
-  onPromote?: () => void // session-scope only
+  onUpdate: (newText: string) => void
+  onPromote?: () => void
+  onToggleCollapse?: () => void
+  dragHandleProps?: Record<string, unknown>
 }
 
-export function NoteItem({ item, onToggle, onDelete, onRefill, onPromote }: Props) {
+export const NoteItem = forwardRef<HTMLDivElement, Props>(function NoteItem(
+  {
+    item, depth = 0, hasChildren, collapsed, isDragging, isNestTarget,
+    onToggle, onDelete, onRefill, onUpdate, onPromote, onToggleCollapse,
+    dragHandleProps,
+  },
+  ref,
+) {
   const [hover, setHover] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [editText, setEditText] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (editing) {
+      inputRef.current?.focus()
+      inputRef.current?.select()
+    }
+  }, [editing])
+
+  function startEdit() {
+    if (item.done) return
+    setEditText(item.text)
+    setEditing(true)
+  }
+
+  function commitEdit() {
+    const trimmed = editText.trim()
+    if (trimmed && trimmed !== item.text) onUpdate(trimmed)
+    setEditing(false)
+  }
+
   return (
     <div
+      ref={ref}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
-      className="group flex items-start gap-2 px-2 py-1.5 rounded-md
-                 hover:bg-bg-hover transition-colors"
+      className={
+        'group flex items-start gap-1.5 px-2 py-1.5 rounded-lg transition-colors ' +
+        (depth === 1 ? 'pl-7 ' : '') +
+        (isDragging ? 'opacity-30 ' : '') +
+        (isNestTarget ? 'bg-accent/10 ring-1 ring-accent/40 ' : 'hover:bg-bg-hover ')
+      }
     >
+      {!item.done && (
+        <div
+          {...dragHandleProps}
+          className={'mt-[3px] shrink-0 cursor-grab active:cursor-grabbing text-fg-faint ' +
+            'transition-opacity ' + (hover && !editing ? 'opacity-100' : 'opacity-0')}
+        >
+          <GripVertical size={12} />
+        </div>
+      )}
+
+      {hasChildren && onToggleCollapse ? (
+        <button onClick={onToggleCollapse} className="mt-[3px] shrink-0 text-fg-subtle hover:text-fg-default">
+          <ChevronRight
+            size={11}
+            className={'transition-transform duration-150 ' + (collapsed ? '' : 'rotate-90')}
+          />
+        </button>
+      ) : item.done ? null : (
+        <div className="w-3 shrink-0" />
+      )}
+
       <button
         onClick={onToggle}
         className={
@@ -35,15 +99,35 @@ export function NoteItem({ item, onToggle, onDelete, onRefill, onPromote }: Prop
           </svg>
         )}
       </button>
-      <span
-        className={
-          'flex-1 text-[12.5px] leading-[1.5] whitespace-pre-wrap break-words ' +
-          (item.done ? 'line-through text-fg-faint' : 'text-fg-default')
-        }
-      >
-        {item.text}
-      </span>
-      <div className={'flex items-center gap-0.5 shrink-0 ' + (hover ? 'opacity-100' : 'opacity-0')}>
+
+      {editing ? (
+        <input
+          ref={inputRef}
+          value={editText}
+          onChange={(e) => setEditText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') { e.preventDefault(); commitEdit() }
+            if (e.key === 'Escape') { setEditing(false) }
+          }}
+          onBlur={commitEdit}
+          className="flex-1 bg-transparent text-[12.5px] leading-[1.5] text-fg-default
+                     border-b border-accent outline-none"
+        />
+      ) : (
+        <span
+          onClick={startEdit}
+          className={
+            'flex-1 text-[12.5px] leading-[1.5] whitespace-pre-wrap break-words ' +
+            (item.done
+              ? 'line-through text-fg-faint'
+              : 'text-fg-default cursor-pointer hover:text-accent')
+          }
+        >
+          {item.text}
+        </span>
+      )}
+
+      <div className={'flex items-center gap-0.5 shrink-0 ' + (hover && !editing ? 'opacity-100' : 'opacity-0')}>
         <IconBtn label="Send to input" onClick={onRefill}>
           <CornerUpLeft size={11} />
         </IconBtn>
@@ -58,7 +142,7 @@ export function NoteItem({ item, onToggle, onDelete, onRefill, onPromote }: Prop
       </div>
     </div>
   )
-}
+})
 
 function IconBtn({ label, onClick, children }: { label: string; onClick: () => void; children: React.ReactNode }) {
   return (
@@ -66,7 +150,7 @@ function IconBtn({ label, onClick, children }: { label: string; onClick: () => v
       onClick={onClick}
       title={label}
       aria-label={label}
-      className="h-5 w-5 flex items-center justify-center rounded
+      className="h-5 w-5 flex items-center justify-center rounded-md
                  text-fg-subtle hover:text-fg-default hover:bg-bg-active
                  transition-colors"
     >

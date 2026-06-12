@@ -7,9 +7,20 @@ export default defineConfig({
     build: {
       outDir: 'out/main',
       lib: { entry: 'electron/main.ts' },
+      rollupOptions: {
+        external: ['electron'],
+      },
     },
     resolve: {
       alias: { '@shared': resolve(__dirname, 'shared') },
+    },
+    ssr: {
+      noExternal: [
+        '@anthropic-ai/claude-agent-sdk',
+        '@anthropic-ai/sdk',
+        '@modelcontextprotocol/sdk',
+        'zod',
+      ],
     },
   },
   preload: {

@@ -1,12 +1,24 @@
 import { promises as fs } from 'node:fs'
 import { dirname } from 'node:path'
 
+export type NotificationPrefs = {
+  onResult: boolean
+  onPermission: boolean
+  onError: boolean
+}
+
 export type AppData = {
   manual: string[]
   hidden: string[]
+  archived: string[]
+  archivedSessions: string[]
+  notifications: NotificationPrefs
+  sessionPermissionModes: Record<string, string>
 }
 
-const DEFAULT: AppData = { manual: [], hidden: [] }
+const DEFAULT_NOTIFICATIONS: NotificationPrefs = { onResult: true, onPermission: true, onError: true }
+
+const DEFAULT: AppData = { manual: [], hidden: [], archived: [], archivedSessions: [], notifications: DEFAULT_NOTIFICATIONS, sessionPermissionModes: {} }
 
 export async function readAppData(path: string): Promise<AppData> {
   try {
@@ -15,6 +27,10 @@ export async function readAppData(path: string): Promise<AppData> {
     return {
       manual: Array.isArray(parsed.manual) ? parsed.manual : [],
       hidden: Array.isArray(parsed.hidden) ? parsed.hidden : [],
+      archived: Array.isArray(parsed.archived) ? parsed.archived : [],
+      archivedSessions: Array.isArray(parsed.archivedSessions) ? parsed.archivedSessions : [],
+      notifications: { ...DEFAULT_NOTIFICATIONS, ...(parsed.notifications as Partial<NotificationPrefs> | undefined) },
+      sessionPermissionModes: (parsed.sessionPermissionModes && typeof parsed.sessionPermissionModes === 'object' && !Array.isArray(parsed.sessionPermissionModes)) ? parsed.sessionPermissionModes as Record<string, string> : {},
     }
   } catch {
     return { ...DEFAULT }

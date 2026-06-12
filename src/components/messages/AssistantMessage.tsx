@@ -6,8 +6,8 @@ type Props = { text: string }
 export function AssistantMessage({ text }: Props) {
   return (
     <div className="px-6 py-2.5">
-      <div className="mx-auto max-w-3xl flex justify-start">
-        <div className="max-w-[88%] rounded-2xl rounded-tl-sm px-3.5 py-2
+      <div className="mx-auto max-w-4xl flex justify-start">
+        <div className="w-full rounded-2xl rounded-tl-sm px-3.5 py-2
                         bg-bubble-assistant border border-bubble-assistant-border
                         text-fg-default text-[13.5px] leading-[1.6] shadow-sm
                         markdown overflow-hidden">

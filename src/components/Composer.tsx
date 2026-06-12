@@ -1,7 +1,11 @@
-import { useState, useEffect, useRef, useLayoutEffect } from 'react'
-import * as Select from '@radix-ui/react-select'
-import { Check, ChevronDown, FolderOpen, ArrowUp, NotebookPen, Square } from 'lucide-react'
+import { useState, useEffect, useRef, useLayoutEffect, useMemo } from 'react'
+import { ArrowUp, NotebookPen, Square } from 'lucide-react'
 import { useProjects } from '../store/projects'
+import { filterCommands, toSlashCommands } from '../lib/slash-commands'
+import { SlashMenu } from './SlashMenu'
+import { PermissionModeSelector } from './PermissionModeSelector'
+import { ModelSelector } from './ModelSelector'
+import type { CommandInfo } from '@shared/types'
 
 type Props = {
   cwdLocked?: string
@@ -11,7 +15,14 @@ type Props = {
   onCutToNotes?: (text: string) => void
   disabled?: boolean
   running?: boolean
-  prefill?: { text: string; nonce: number } | null
+  prefill?: { text: string; nonce: number; replace?: boolean } | null
+  availableCommands?: CommandInfo[]
+  initialDraft?: string
+  onDraftChange?: (text: string) => void
+  channelId?: string
+  model?: string
+  permissionMode?: string
+  onPermissionModeChange?: (mode: string) => void
 }
 
 export function Composer({
@@ -23,6 +34,13 @@ export function Composer({
   disabled,
   running,
   prefill,
+  availableCommands,
+  initialDraft,
+  onDraftChange,
+  channelId,
+  model,
+  permissionMode,
+  onPermissionModeChange,
 }: Props) {
   const { projects } = useProjects()
   const defaultCwd =
@@ -32,9 +50,28 @@ export function Composer({
       ?.path ??
     ''
   const [cwd, setCwd] = useState(defaultCwd)
-  const [text, setText] = useState('')
+  const [text, _setText] = useState(initialDraft ?? '')
+  function setText(v: string | ((prev: string) => string)) {
+    _setText((prev) => {
+      const next = typeof v === 'function' ? v(prev) : v
+      if (next !== prev) onDraftChange?.(next)
+      return next
+    })
+  }
+  const [slashQuery, setSlashQuery] = useState<string | null>(null)
+  const [slashIndex, setSlashIndex] = useState(0)
   const taRef = useRef<HTMLTextAreaElement>(null)
   const composingRef = useRef(false)
+
+  const allCommands = useMemo(
+    () => toSlashCommands(availableCommands),
+    [availableCommands],
+  )
+  const slashResults = useMemo(
+    () => (slashQuery !== null ? filterCommands(slashQuery, allCommands) : []),
+    [slashQuery, allCommands],
+  )
+  const slashOpen = slashQuery !== null && slashResults.length > 0
 
   useEffect(() => {
     if (!cwdLocked) setCwd(defaultCwd)
@@ -50,10 +87,14 @@ export function Composer({
 
   useEffect(() => {
     if (!prefill) return
-    setText((prev) => {
-      const sep = prev.length > 0 && !prev.endsWith('\n') && !prev.endsWith(' ') ? ' ' : ''
-      return prev + sep + prefill.text
-    })
+    if (prefill.replace) {
+      setText(prefill.text)
+    } else {
+      setText((prev) => {
+        const sep = prev.length > 0 && !prev.endsWith('\n') && !prev.endsWith(' ') ? ' ' : ''
+        return prev + sep + prefill.text
+      })
+    }
     requestAnimationFrame(() => {
       const el = taRef.current
       if (!el) return
@@ -79,27 +120,87 @@ export function Composer({
     setText('')
   }
 
-  const effective = cwdLocked ?? cwd
-  const cwdLabel = effective.split('/').pop() || effective || 'No directory'
-
   return (
     <div className="px-6 pb-5 pt-1">
-      <div
-        className="relative rounded-xl bg-bg-inset border border-line/80
-                   focus-within:border-line-strong transition-colors"
-      >
+      <div className="mx-auto max-w-4xl">
+        <div
+          className="relative rounded-2xl bg-bg-inset border border-line/80
+                     focus-within:border-line-strong transition-colors"
+        >
+        {slashOpen && (
+          <SlashMenu
+            commands={slashResults}
+            activeIndex={slashIndex}
+            onSelect={(cmd) => {
+              setText(cmd.command + ' ')
+              setSlashQuery(null)
+              taRef.current?.focus()
+            }}
+          />
+        )}
         <textarea
           ref={taRef}
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => {
+            const val = e.target.value
+            setText(val)
+            if (val.startsWith('/')) {
+              const query = val.slice(1).split(/\s/)[0]
+              if (val.indexOf(' ') === -1) {
+                setSlashQuery(query)
+                setSlashIndex(0)
+              } else {
+                setSlashQuery(null)
+              }
+            } else {
+              setSlashQuery(null)
+            }
+          }}
           onCompositionStart={() => { composingRef.current = true }}
           onCompositionEnd={() => {
             requestAnimationFrame(() => { composingRef.current = false })
           }}
           onKeyDown={(e) => {
+            if (slashOpen) {
+              if (e.key === 'ArrowDown') {
+                e.preventDefault()
+                setSlashIndex((i) => (i + 1) % slashResults.length)
+                return
+              }
+              if (e.key === 'ArrowUp') {
+                e.preventDefault()
+                setSlashIndex((i) => (i - 1 + slashResults.length) % slashResults.length)
+                return
+              }
+              if (e.key === 'Tab') {
+                e.preventDefault()
+                const cmd = slashResults[slashIndex]
+                if (cmd) {
+                  setText(cmd.command + ' ')
+                  setSlashQuery(null)
+                }
+                return
+              }
+              if (e.key === 'Escape') {
+                e.preventDefault()
+                setSlashQuery(null)
+                return
+              }
+            }
+
             if (e.key !== 'Enter') return
             const native = e.nativeEvent as KeyboardEvent
             if (composingRef.current || native.isComposing || native.keyCode === 229) return
+
+            if (slashOpen) {
+              e.preventDefault()
+              const cmd = slashResults[slashIndex]
+              if (cmd) {
+                setText(cmd.command + ' ')
+                setSlashQuery(null)
+              }
+              return
+            }
 
             // ⌘+Shift+Enter → cut to notes
             if ((e.metaKey || e.ctrlKey) && e.shiftKey) {
@@ -122,70 +223,26 @@ export function Composer({
                      text-[13.5px] leading-[1.5] placeholder:text-fg-subtle"
         />
         <div className="flex items-center justify-between px-2.5 py-1.5 border-t border-line/60">
-          {cwdLocked ? (
-            <div className="flex items-center gap-1.5 text-[11.5px] text-fg-subtle px-1.5 py-0.5">
-              <FolderOpen size={11} />
-              <span className="font-mono truncate max-w-[360px]" title={cwdLocked}>
-                {cwdLabel}
-              </span>
-            </div>
-          ) : (
-            <Select.Root value={cwd} onValueChange={setCwd}>
-              <Select.Trigger
-                className="flex items-center gap-1.5 px-1.5 py-0.5 rounded
-                           text-[11.5px] text-fg-subtle hover:text-fg-default
-                           hover:bg-bg-hover/60 transition-colors"
-              >
-                <FolderOpen size={11} />
-                <Select.Value>
-                  <span className="font-mono">{cwdLabel}</span>
-                </Select.Value>
-                <ChevronDown size={11} className="opacity-60" />
-              </Select.Trigger>
-              <Select.Portal>
-                <Select.Content
-                  className="z-50 bg-bg-panel border border-line rounded-lg shadow-2xl
-                             overflow-hidden min-w-[280px] max-h-[400px]"
-                  position="popper"
-                  sideOffset={6}
-                >
-                  <Select.Viewport className="p-1">
-                    {projects
-                      .filter((p) => !p.hidden)
-                      .map((p) => (
-                        <Select.Item
-                          key={p.path}
-                          value={p.path}
-                          className="relative flex items-center gap-2 px-2 py-1.5 pr-7 rounded
-                                     text-[12px] text-fg-muted hover:bg-bg-hover hover:text-fg-default
-                                     data-[state=checked]:text-fg-default cursor-default outline-none"
-                        >
-                          <FolderOpen size={11} className="text-fg-subtle shrink-0" />
-                          <Select.ItemText>
-                            <span className="font-mono truncate">{p.path}</span>
-                          </Select.ItemText>
-                          <Select.ItemIndicator className="absolute right-2">
-                            <Check size={11} className="text-accent" />
-                          </Select.ItemIndicator>
-                        </Select.Item>
-                      ))}
-                  </Select.Viewport>
-                </Select.Content>
-              </Select.Portal>
-            </Select.Root>
-          )}
+          {/* Left: permission mode + model selectors */}
+          <div className="flex items-center gap-1">
+            <PermissionModeSelector
+              channelId={channelId}
+              currentMode={permissionMode}
+              onLocalChange={onPermissionModeChange}
+            />
+            {channelId && (
+              <ModelSelector channelId={channelId} currentModel={model} />
+            )}
+          </div>
 
           <div className="flex items-center gap-1.5">
-            <span className="text-[10.5px] text-fg-faint hidden sm:inline mr-1">
-              ↵ send · ⇧↵ newline{onCutToNotes ? ' · ⌘⇧↵ note' : ''}
-            </span>
             {onCutToNotes && (
               <button
                 onClick={cutToNotes}
                 disabled={!text.trim()}
                 title="Move to notes (⌘⇧↵)"
                 aria-label="Move input to notes"
-                className="h-6 w-6 flex items-center justify-center rounded
+                className="h-6 w-6 flex items-center justify-center rounded-lg
                            text-fg-subtle hover:text-fg-default hover:bg-bg-hover
                            disabled:text-fg-faint disabled:cursor-not-allowed disabled:hover:bg-transparent
                            transition-colors"
@@ -196,7 +253,7 @@ export function Composer({
             {running ? (
               <button
                 onClick={onStop}
-                className="h-6 w-6 flex items-center justify-center rounded
+                className="h-6 w-6 flex items-center justify-center rounded-lg
                            bg-red-500 text-white hover:bg-red-600
                            transition-colors"
                 aria-label="Stop"
@@ -208,7 +265,7 @@ export function Composer({
               <button
                 onClick={submit}
                 disabled={disabled || !text.trim()}
-                className="h-6 w-6 flex items-center justify-center rounded
+                className="h-6 w-6 flex items-center justify-center rounded-lg
                            bg-fg-default text-bg-base hover:bg-fg-muted
                            disabled:bg-bg-hover disabled:text-fg-faint disabled:cursor-not-allowed
                            transition-colors"
@@ -220,6 +277,7 @@ export function Composer({
           </div>
         </div>
       </div>
+    </div>
     </div>
   )
 }

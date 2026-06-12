@@ -10,9 +10,11 @@ const ID_RE = /^<!--id:([a-zA-Z0-9_-]+)-->\s*/
 
 export function parseNotes(md: string): NoteItem[] {
   const out: NoteItem[] = []
+  let lastTopLevelId: string | null = null
   for (const line of md.split('\n')) {
     const m = line.match(ITEM_RE)
     if (!m) continue
+    const indent = (line.match(/^(\s*)/) ?? ['', ''])[1].length
     const done = m[1].toLowerCase() === 'x'
     let text = m[2].trim()
     let id: string
@@ -23,7 +25,14 @@ export function parseNotes(md: string): NoteItem[] {
     } else {
       id = generateId()
     }
-    out.push({ id, done, text })
+    const isChild = indent >= 2 && lastTopLevelId !== null
+    const item: NoteItem = { id, done, text }
+    if (isChild) {
+      item.parentId = lastTopLevelId!
+    } else {
+      lastTopLevelId = id
+    }
+    out.push(item)
   }
   return out
 }
@@ -31,9 +40,10 @@ export function parseNotes(md: string): NoteItem[] {
 export function serializeNotes(items: NoteItem[]): string {
   if (items.length === 0) return ''
   const lines = items.map((item) => {
+    const indent = item.parentId ? '  ' : ''
     const box = item.done ? '[x]' : '[ ]'
     const safeText = item.text.replace(/\s*\n\s*/g, ' ').trim()
-    return `- ${box} <!--id:${item.id}--> ${safeText}`
+    return `${indent}- ${box} <!--id:${item.id}--> ${safeText}`
   })
   return lines.join('\n') + '\n'
 }

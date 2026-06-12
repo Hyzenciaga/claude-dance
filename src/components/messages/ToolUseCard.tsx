@@ -25,7 +25,7 @@ export function ToolUseCard({ tool, input }: Props) {
 
   return (
     <div className="px-6 py-1.5">
-      <div className="mx-auto max-w-3xl pl-9">
+      <div className="mx-auto max-w-4xl pl-9">
         <button
           onClick={() => setOpen((o) => !o)}
           className="group w-full flex items-center gap-2 text-left

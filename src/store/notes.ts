@@ -12,13 +12,16 @@ type State = {
   items: Record<Key, NoteItem[]>
   loaded: Record<Key, boolean>
   loading: Record<Key, boolean>
+  collapsed: Record<Key, Set<string>>
 
   load: (scope: NoteScope, key: string) => Promise<void>
   setItems: (scope: NoteScope, key: string, items: NoteItem[]) => void
   addItem: (scope: NoteScope, key: string, text: string) => NoteItem
+  updateText: (scope: NoteScope, key: string, id: string, newText: string) => void
   toggle: (scope: NoteScope, key: string, id: string) => void
   remove: (scope: NoteScope, key: string, id: string) => void
   promoteToProject: (sessionKey: string, projectKey: string, id: string) => void
+  toggleCollapse: (scope: NoteScope, key: string, parentId: string) => void
 }
 
 const persistTimers = new Map<Key, ReturnType<typeof setTimeout>>()
@@ -45,6 +48,7 @@ export const useNotes = create<State>((set, get) => ({
   items: {},
   loaded: {},
   loading: {},
+  collapsed: {},
 
   load: async (scope, key) => {
     const k = makeKey(scope, key)
@@ -80,10 +84,26 @@ export const useNotes = create<State>((set, get) => ({
     return item
   },
 
+  updateText: (scope, key, id, newText) => {
+    const trimmed = newText.trim()
+    if (!trimmed) return
+    const k = makeKey(scope, key)
+    const current = get().items[k] ?? []
+    const next = current.map((i) => (i.id === id ? { ...i, text: trimmed } : i))
+    set((s) => ({ items: { ...s.items, [k]: next } }))
+    schedulePersist(scope, key, next)
+  },
+
   toggle: (scope, key, id) => {
     const k = makeKey(scope, key)
     const current = get().items[k] ?? []
-    const next = current.map((i) => (i.id === id ? { ...i, done: !i.done } : i))
+    const target = current.find((i) => i.id === id)
+    if (!target) return
+    const next = current.map((i) => {
+      if (i.id === id) return { ...i, done: !i.done }
+      if (!target.done && i.parentId === id) return { ...i, parentId: undefined }
+      return i
+    })
     set((s) => ({ items: { ...s.items, [k]: next } }))
     schedulePersist(scope, key, next)
   },
@@ -91,7 +111,9 @@ export const useNotes = create<State>((set, get) => ({
   remove: (scope, key, id) => {
     const k = makeKey(scope, key)
     const current = get().items[k] ?? []
-    const next = current.filter((i) => i.id !== id)
+    const next = current
+      .filter((i) => i.id !== id)
+      .map((i) => (i.parentId === id ? { ...i, parentId: undefined } : i))
     set((s) => ({ items: { ...s.items, [k]: next } }))
     schedulePersist(scope, key, next)
   },
@@ -104,7 +126,7 @@ export const useNotes = create<State>((set, get) => ({
     if (!target) return
     const newSession = sessionItems.filter((i) => i.id !== id)
     const projectItems = get().items[pk] ?? []
-    const newProject = [...projectItems, { ...target, id: genId() }]
+    const newProject = [...projectItems, { ...target, id: genId(), parentId: undefined }]
     set((s) => ({
       items: {
         ...s.items,
@@ -115,5 +137,13 @@ export const useNotes = create<State>((set, get) => ({
     }))
     schedulePersist('session', sessionKey, newSession)
     schedulePersist('project', projectKey, newProject)
+  },
+
+  toggleCollapse: (scope, key, parentId) => {
+    const k = makeKey(scope, key)
+    const current = new Set(get().collapsed[k] ?? [])
+    if (current.has(parentId)) current.delete(parentId)
+    else current.add(parentId)
+    set((s) => ({ collapsed: { ...s.collapsed, [k]: current } }))
   },
 }))

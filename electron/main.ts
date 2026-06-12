@@ -1,23 +1,9 @@
-import { app, BrowserWindow, dialog, nativeImage } from 'electron'
-import { execSync } from 'node:child_process'
+import { app, BrowserWindow, dialog, nativeImage, session } from 'electron'
 import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { registerIpc } from './ipc'
-import { shutdownAll } from './claude-process'
+import { registerIpc, setMainWindow } from './ipc'
+import { shutdownAll, resolveClaudeBinary } from './sdk-adapter'
 import { hydrateShellPath } from './shell-path'
-
-function checkClaudeBinary(): boolean {
-  try {
-    execSync('command -v claude', {
-      stdio: 'ignore',
-      shell: '/bin/sh',
-      env: { ...process.env },
-    })
-    return true
-  } catch {
-    return false
-  }
-}
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -35,7 +21,15 @@ function createWindow() {
       nodeIntegration: false,
     },
   })
-  registerIpc(win)
+  if (process.platform === 'darwin') {
+    win.on('close', (e) => {
+      if (!isQuitting) {
+        e.preventDefault()
+        win.hide()
+      }
+    })
+  }
+  setMainWindow(win)
   const devUrl = process.env['ELECTRON_RENDERER_URL']
   if (devUrl) win.loadURL(devUrl)
   else win.loadFile(resolve(__dirname, '../renderer/index.html'))
@@ -48,11 +42,17 @@ function resolveDevIcon(): Electron.NativeImage | undefined {
   return existsSync(candidate) ? nativeImage.createFromPath(candidate) : undefined
 }
 
+let isQuitting = false
+
+app.setName('ClaudeDance')
+
 app.whenReady().then(() => {
   hydrateShellPath()
   const devIcon = resolveDevIcon()
   if (devIcon) app.dock?.setIcon(devIcon)
-  if (!checkClaudeBinary()) {
+  try {
+    resolveClaudeBinary()
+  } catch {
     dialog.showErrorBox(
       'Claude CLI not found',
       `ClaudeDance could not locate the 'claude' command.\n\n` +
@@ -63,13 +63,25 @@ app.whenReady().then(() => {
     app.quit()
     return
   }
+  session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => {
+    callback(permission === 'notifications')
+  })
+  session.defaultSession.setPermissionCheckHandler((_wc, permission) => {
+    return permission === 'notifications'
+  })
+  registerIpc()
   createWindow()
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+    const wins = BrowserWindow.getAllWindows()
+    if (wins.length > 0) wins[0].show()
+    else createWindow()
   })
 })
 
-app.on('before-quit', () => shutdownAll())
+app.on('before-quit', () => {
+  isQuitting = true
+  shutdownAll()
+})
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()

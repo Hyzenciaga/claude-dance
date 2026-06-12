@@ -1,39 +1,46 @@
-export type Bucket = 'today' | 'yesterday' | 'thisWeek' | 'earlier'
+export type Bucket = 'recent' | 'week' | 'month' | 'earlier'
 
 export type HasLastMessageAt = { id: string; lastMessageAt: number }
 
 const labelByBucket: Record<Bucket, string> = {
-  today: 'Today',
-  yesterday: 'Yesterday',
-  thisWeek: 'This Week',
-  earlier: 'Earlier',
+  recent: '近 3 天',
+  week: '一周',
+  month: '一个月',
+  earlier: '更早',
 }
 
-const order: Bucket[] = ['today', 'yesterday', 'thisWeek', 'earlier']
+const order: Bucket[] = ['recent', 'week', 'month', 'earlier']
+
+const DAY = 24 * 60 * 60 * 1000
+
+export function groupByTime<T>(
+  items: T[],
+  getTime: (item: T) => number,
+  now: number = Date.now(),
+): { bucket: Bucket; label: string; items: T[] }[] {
+  const cutoff3d = now - 3 * DAY
+  const cutoff7d = now - 7 * DAY
+  const cutoff30d = now - 30 * DAY
+
+  const buckets: Record<Bucket, T[]> = { recent: [], week: [], month: [], earlier: [] }
+  for (const item of items) {
+    const t = getTime(item)
+    if (t >= cutoff3d) buckets.recent.push(item)
+    else if (t >= cutoff7d) buckets.week.push(item)
+    else if (t >= cutoff30d) buckets.month.push(item)
+    else buckets.earlier.push(item)
+  }
+  return order
+    .filter((b) => buckets[b].length > 0)
+    .map((b) => ({ bucket: b, label: labelByBucket[b], items: buckets[b] }))
+}
 
 export function groupSessionsByTime<T extends HasLastMessageAt>(
   sessions: T[],
   now: number = Date.now(),
 ): { bucket: Bucket; label: string; sessions: T[] }[] {
-  const startOfToday = startOfDay(now)
-  const startOfYesterday = startOfToday - 24 * 60 * 60 * 1000
-  const startOfWeek = startOfToday - 7 * 24 * 60 * 60 * 1000
-
-  const buckets: Record<Bucket, T[]> = { today: [], yesterday: [], thisWeek: [], earlier: [] }
-  for (const s of sessions) {
-    if (s.lastMessageAt >= startOfToday) buckets.today.push(s)
-    else if (s.lastMessageAt >= startOfYesterday) buckets.yesterday.push(s)
-    else if (s.lastMessageAt >= startOfWeek) buckets.thisWeek.push(s)
-    else buckets.earlier.push(s)
-  }
-  return order
-    .filter((b) => buckets[b].length > 0)
-    .map((b) => ({ bucket: b, label: labelByBucket[b], sessions: buckets[b] }))
-}
-
-function startOfDay(ts: number): number {
-  const d = new Date(ts)
-  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())
+  return groupByTime(sessions, (s) => s.lastMessageAt, now)
+    .map((g) => ({ bucket: g.bucket, label: g.label, sessions: g.items }))
 }
 
 export function relativeTime(ts: number, now: number = Date.now()): string {

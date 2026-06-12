@@ -4,16 +4,16 @@ import { api } from '../lib/api'
 
 type State = {
   eventsBySession: Record<string, RawEvent[]>
-  loadFromFile: (sessionId: string, jsonlPath: string) => Promise<void>
+  loadSession: (sessionId: string, projectDir: string) => Promise<void>
   appendEvent: (sessionId: string, event: RawEvent) => void
   clear: (sessionId: string) => void
 }
 
 export const useEvents = create<State>((set, get) => ({
   eventsBySession: {},
-  loadFromFile: async (sessionId, jsonlPath) => {
+  loadSession: async (sessionId, projectDir) => {
     if (get().eventsBySession[sessionId]) return
-    const events = await api().readSession(jsonlPath)
+    const events = await api().readSession(sessionId, projectDir)
     set((s) => ({ eventsBySession: { ...s.eventsBySession, [sessionId]: events } }))
   },
   appendEvent: (sessionId, event) => {

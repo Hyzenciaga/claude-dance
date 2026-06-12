@@ -12,12 +12,13 @@ export type ScanOptions = {
 export async function scanProjects(opts: ScanOptions): Promise<Project[]> {
   const appData = await readAppData(opts.appDataPath)
   const hidden = new Set(appData.hidden)
+  const archived = new Set(appData.archived)
 
   const map = new Map<string, Project>()
 
   const scanned = await listScannedProjects(opts.projectsDir)
   for (const p of scanned) {
-    map.set(p.path, { ...p, hidden: hidden.has(p.path) })
+    map.set(p.path, { ...p, hidden: hidden.has(p.path), archived: archived.has(p.path) })
   }
 
   for (const manualPath of appData.manual) {
@@ -30,9 +31,10 @@ export async function scanProjects(opts: ScanOptions): Promise<Project[]> {
       encodedPath: encodeCwd(manualPath),
       exists: await dirExists(manualPath),
       sessionCount: 0,
-      lastActiveAt: 0,
+      lastActiveAt: Date.now(),
       source: 'manual',
       hidden: hidden.has(manualPath),
+      archived: archived.has(manualPath),
     })
   }
 
@@ -73,6 +75,7 @@ async function listScannedProjects(projectsDir: string): Promise<Project[]> {
       lastActiveAt,
       source: 'scanned',
       hidden: false,
+      archived: false,
     })
   }
   return results

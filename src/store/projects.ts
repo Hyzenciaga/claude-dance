@@ -9,6 +9,8 @@ type State = {
   selectProject: (path: string | null) => void
   addProject: (path: string) => Promise<void>
   hideProject: (path: string) => Promise<void>
+  archiveProject: (path: string) => Promise<void>
+  unarchiveProject: (path: string) => Promise<void>
 }
 
 export const useProjects = create<State>((set) => ({
@@ -25,6 +27,14 @@ export const useProjects = create<State>((set) => ({
   },
   hideProject: async (path) => {
     const projects = await api().hideProject(path)
+    set({ projects })
+  },
+  archiveProject: async (path) => {
+    const projects = await api().archiveProject(path)
+    set({ projects })
+  },
+  unarchiveProject: async (path) => {
+    const projects = await api().unarchiveProject(path)
     set({ projects })
   },
 }))

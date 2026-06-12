@@ -8,3 +8,4 @@ release/
 *.log
 *.tsbuildinfo
 .vite/
+.playwright-mcp/
