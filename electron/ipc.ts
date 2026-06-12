@@ -1,6 +1,12 @@
-import { ipcMain, dialog, Notification } from 'electron'
+import { ipcMain, dialog, Notification, nativeImage } from 'electron'
 import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
+import { existsSync } from 'node:fs'
+
+function notificationIcon() {
+  const candidate = resolve(__dirname, '../../build/icon-dev.png')
+  return existsSync(candidate) ? nativeImage.createFromPath(candidate) : undefined
+}
 import { listSessions as sdkListSessions, getSessionMessages, forkSession } from '@anthropic-ai/claude-agent-sdk'
 import type { SDKSessionInfo, SessionMessage } from '@anthropic-ai/claude-agent-sdk'
 import type { Project, SessionSummary, RawEvent, ChatStartRequest, ChatStartResponse } from '@shared/types'
@@ -274,7 +280,7 @@ export function registerIpc(): void {
 
   ipcMain.handle('notification.test', async (): Promise<boolean> => {
     if (!Notification.isSupported()) return false
-    const n = new Notification({ title: 'ClaudeDance', body: 'Notifications are working!', silent: false })
+    const n = new Notification({ title: 'ClaudeDance', body: 'Notifications are working!', silent: false, icon: notificationIcon() })
     n.show()
     return true
   })

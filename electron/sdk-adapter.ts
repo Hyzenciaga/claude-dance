@@ -2,12 +2,18 @@ import { query, startup, getSessionMessages, renameSession as sdkRenameSession }
 import type { SDKMessage, SDKPartialAssistantMessage, Query, WarmQuery, RewindFilesResult } from '@anthropic-ai/claude-agent-sdk'
 import { execSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
-import { Notification, type BrowserWindow } from 'electron'
+import { Notification, nativeImage, type BrowserWindow } from 'electron'
 import type { ChannelId, ChatStartRequest, RawEvent, PermissionRequest, AskUserQuestionRequest } from '@shared/types'
 import { sendChatEvent } from './ipc-utils'
 import { readAppData, type NotificationPrefs } from './app-data'
 import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
+import { existsSync } from 'node:fs'
+
+function notificationIcon() {
+  const candidate = resolve(__dirname, '../../build/icon-dev.png')
+  return existsSync(candidate) ? nativeImage.createFromPath(candidate) : undefined
+}
 
 
 type ContentBlock = { type: string; [key: string]: unknown }
@@ -32,14 +38,14 @@ async function notifyIfBackground(
   kind: keyof NotificationPrefs,
   title: string,
   body: string,
-): void {
+): Promise<void> {
   if (!mainWin || mainWin.isDestroyed() || mainWin.isFocused()) return
   if (!Notification.isSupported()) return
   try {
     const data = await readAppData(APP_DATA_PATH)
     if (!data.notifications[kind]) return
   } catch { return }
-  const n = new Notification({ title, body: body.slice(0, 120), silent: false })
+  const n = new Notification({ title, body: body.slice(0, 120), silent: false, icon: notificationIcon() })
   n.on('click', () => { mainWin?.show(); mainWin?.focus() })
   n.show()
 }

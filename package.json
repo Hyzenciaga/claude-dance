@@ -6,6 +6,7 @@
   "author": "ClaudeDance",
   "scripts": {
     "postinstall": "sh scripts/patch-electron-name.sh",
+    "clean": "rm -rf out release .vite",
     "dev": "sh scripts/patch-electron-name.sh && electron-vite dev",
     "build": "electron-vite build",
     "start": "electron-vite preview",
