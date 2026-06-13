@@ -34,6 +34,7 @@ export function ChatView({ sessionId, status, error, pendingPermission, onPermis
   const [showScrollDown, setShowScrollDown] = useState(false)
   const loadingRef = useRef(false)
   const seenKeys = useRef(new Set<string>())
+  const suppressScroll = useRef(false)
 
   const isInitialScroll = useRef(true)
 
@@ -60,14 +61,18 @@ export function ChatView({ sessionId, status, error, pendingPermission, onPermis
     if (!el) return
     if (isInitialScroll.current) {
       if (allMessages.length > 0) {
+        suppressScroll.current = true
         el.scrollTop = el.scrollHeight
+        suppressScroll.current = false
         isInitialScroll.current = false
       }
       return
     }
     if (showScrollDown) return
+    suppressScroll.current = true
     el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
-  }, [allMessages.length, showThinking, showScrollDown])
+    setTimeout(() => { suppressScroll.current = false }, 300)
+  }, [allMessages.length, showThinking])
 
   // Auto-scroll during streaming (content grows within same message)
   const lastAssistantText = lastMsg?.kind === 'assistant' ? lastMsg.text : null
@@ -75,8 +80,10 @@ export function ChatView({ sessionId, status, error, pendingPermission, onPermis
     if (!lastAssistantText) return
     const el = scrollRef.current
     if (!el || showScrollDown) return
+    suppressScroll.current = true
     el.scrollTop = el.scrollHeight
-  }, [lastAssistantText, showScrollDown])
+    suppressScroll.current = false
+  }, [lastAssistantText])
 
   // Scroll to bottom when question dialog appears
   useEffect(() => {
@@ -88,7 +95,7 @@ export function ChatView({ sessionId, status, error, pendingPermission, onPermis
 
   const onScroll = useCallback(() => {
     const el = scrollRef.current
-    if (!el || loadingRef.current) return
+    if (!el || loadingRef.current || suppressScroll.current) return
 
     const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
     setShowScrollDown(distFromBottom > SCROLL_UP_THRESHOLD)
