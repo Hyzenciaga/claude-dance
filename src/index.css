@@ -110,3 +110,66 @@ textarea::-webkit-scrollbar { display: none; }
   color: #3b82f6;
   animation: thinking-pulse 2s ease-in-out infinite;
 }
+
+/* === Code Block: line numbers via CSS counters === */
+.code-block .shiki-code pre {
+  counter-reset: line;
+  margin: 0;
+  padding: 0.75rem;
+}
+.code-block .shiki-code .line {
+  counter-increment: line;
+  display: block;
+  min-height: 1.55em;
+}
+.code-block .shiki-code .line::before {
+  content: counter(line);
+  display: inline-block;
+  width: 2.5em;
+  margin-right: 1em;
+  text-align: right;
+  color: #b3b3af;
+  border-right: 1px solid rgba(0,0,0,0.08);
+  padding-right: 0.75em;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* === Shiki dual theme: activate dark mode when <html class="dark"> === */
+html.dark .shiki-code pre,
+html.dark .shiki-code code,
+html.dark .shiki-code span {
+  color: var(--shiki-dark) !important;
+  background-color: var(--shiki-dark-bg) !important;
+  font-style: var(--shiki-dark-font-style) !important;
+  font-weight: var(--shiki-dark-font-weight) !important;
+  text-decoration: var(--shiki-dark-text-decoration) !important;
+}
+
+/* === Streaming cursor === */
+@keyframes cursor-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+.streaming-cursor::after {
+  content: '\2588';
+  animation: cursor-blink 1s step-end infinite;
+  opacity: 0.6;
+  margin-left: 1px;
+  color: currentColor;
+}
+
+/* === Message entrance animation === */
+@keyframes message-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.message-enter {
+  animation: message-enter 200ms ease-out;
+}
