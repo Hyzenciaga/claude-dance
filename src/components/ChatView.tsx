@@ -81,8 +81,10 @@ export function ChatView({ sessionId, status, error, pendingPermission, onPermis
     const el = scrollRef.current
     if (!el || showScrollDown) return
     suppressScroll.current = true
-    el.scrollTop = el.scrollHeight
-    suppressScroll.current = false
+    requestAnimationFrame(() => {
+      el.scrollTop = el.scrollHeight
+      suppressScroll.current = false
+    })
   }, [lastAssistantText])
 
   // Scroll to bottom when question dialog appears
