@@ -1,16 +1,33 @@
+import { useRef, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { CodeBlock } from '../CodeBlock'
+import { MessageActions } from '../MessageActions'
 
-type Props = { text: string }
+type Props = {
+  text: string
+  isStreaming?: boolean
+  showActions?: boolean
+}
 
-export function AssistantMessage({ text }: Props) {
+export function AssistantMessage({ text, isStreaming, showActions }: Props) {
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  // Track if this is a new message for entrance animation
+  const isNew = useRef(true)
+  useEffect(() => { isNew.current = false }, [])
+
   return (
-    <div className="px-6 py-2.5">
+    <div className={'px-6 py-2.5 group/msg' + (isNew.current ? ' message-enter' : '')}>
       <div className="mx-auto max-w-4xl flex justify-start">
-        <div className="w-full rounded-2xl rounded-tl-sm px-3.5 py-2
-                        bg-bubble-assistant border border-bubble-assistant-border
-                        text-fg-default text-[13.5px] leading-[1.6] shadow-sm
-                        markdown overflow-hidden">
+        <div
+          ref={containerRef}
+          className={'w-full rounded-2xl rounded-tl-sm px-3.5 py-2 ' +
+                     'bg-bubble-assistant border border-bubble-assistant-border ' +
+                     'text-fg-default text-[13.5px] leading-[1.6] shadow-sm ' +
+                     'markdown overflow-hidden' +
+                     (isStreaming ? ' streaming-cursor' : '')}
+        >
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
             components={{
@@ -28,15 +45,21 @@ export function AssistantMessage({ text }: Props) {
               ),
               strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
               em: ({ children }) => <em className="italic">{children}</em>,
+              pre: ({ children }) => {
+                // Extract code and lang from the nested <code> element
+                const codeEl = children as React.ReactElement<{
+                  className?: string
+                  children?: string
+                }>
+                const className = codeEl?.props?.className ?? ''
+                const code = String(codeEl?.props?.children ?? '').replace(/\n$/, '')
+                const lang = className.replace('language-', '') || ''
+                if (code) return <CodeBlock code={code} lang={lang} />
+                return <pre>{children}</pre>
+              },
               code: ({ className, children }) => {
                 const isBlock = /language-/.test(className ?? '')
-                if (isBlock) {
-                  return (
-                    <code className="block font-mono text-[12.5px] leading-[1.5]">
-                      {children}
-                    </code>
-                  )
-                }
+                if (isBlock) return <code>{children}</code>
                 return (
                   <code className="font-mono text-[12.5px] px-1 py-0.5 rounded
                                    bg-bg-hover text-fg-default border border-line/60">
@@ -44,12 +67,6 @@ export function AssistantMessage({ text }: Props) {
                   </code>
                 )
               },
-              pre: ({ children }) => (
-                <pre className="my-2 p-2.5 rounded-md bg-bg-panel border border-line
-                                overflow-x-auto text-[12.5px] leading-[1.55]">
-                  {children}
-                </pre>
-              ),
               blockquote: ({ children }) => (
                 <blockquote className="my-2 pl-3 border-l-2 border-line-strong text-fg-muted">
                   {children}
@@ -71,6 +88,13 @@ export function AssistantMessage({ text }: Props) {
           </ReactMarkdown>
         </div>
       </div>
+
+      {/* Message actions bar */}
+      {showActions && (
+        <div className="mx-auto max-w-4xl flex justify-start mt-1">
+          <MessageActions text={text} />
+        </div>
+      )}
     </div>
   )
 }
