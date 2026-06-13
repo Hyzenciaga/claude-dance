@@ -34,7 +34,7 @@ export function ChatView({ sessionId, status, error, pendingPermission, onPermis
   const [showScrollDown, setShowScrollDown] = useState(false)
   const loadingRef = useRef(false)
   const seenKeys = useRef(new Set<string>())
-  const suppressScroll = useRef(false)
+  const programmaticScroll = useRef(false)
 
   const isInitialScroll = useRef(true)
 
@@ -55,36 +55,34 @@ export function ChatView({ sessionId, status, error, pendingPermission, onPermis
   const showThinking = status === 'running' && (!lastMsg || lastMsg.kind === 'user' || lastMsg.kind === 'toolUse')
 
   // On session open: jump instantly to bottom (no animation)
-  // On new messages: smooth scroll if user hasn't scrolled up
   useEffect(() => {
     const el = scrollRef.current
+    if (!el || !isInitialScroll.current || allMessages.length === 0) return
+    programmaticScroll.current = true
+    el.scrollTop = el.scrollHeight
+    requestAnimationFrame(() => { programmaticScroll.current = false })
+    isInitialScroll.current = false
+  }, [allMessages.length])
+
+  // On new messages: scroll to bottom if user hasn't scrolled up
+  useEffect(() => {
+    if (isInitialScroll.current || showScrollDown) return
+    const el = scrollRef.current
     if (!el) return
-    if (isInitialScroll.current) {
-      if (allMessages.length > 0) {
-        suppressScroll.current = true
-        el.scrollTop = el.scrollHeight
-        suppressScroll.current = false
-        isInitialScroll.current = false
-      }
-      return
-    }
-    if (showScrollDown) return
-    suppressScroll.current = true
-    el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
-    setTimeout(() => { suppressScroll.current = false }, 300)
+    programmaticScroll.current = true
+    el.scrollTop = el.scrollHeight
+    requestAnimationFrame(() => { programmaticScroll.current = false })
   }, [allMessages.length, showThinking])
 
   // Auto-scroll during streaming (content grows within same message)
   const lastAssistantText = lastMsg?.kind === 'assistant' ? lastMsg.text : null
   useEffect(() => {
-    if (!lastAssistantText) return
+    if (!lastAssistantText || showScrollDown) return
     const el = scrollRef.current
-    if (!el || showScrollDown) return
-    suppressScroll.current = true
-    requestAnimationFrame(() => {
-      el.scrollTop = el.scrollHeight
-      suppressScroll.current = false
-    })
+    if (!el) return
+    programmaticScroll.current = true
+    el.scrollTop = el.scrollHeight
+    requestAnimationFrame(() => { programmaticScroll.current = false })
   }, [lastAssistantText])
 
   // Scroll to bottom when question dialog appears
@@ -97,7 +95,7 @@ export function ChatView({ sessionId, status, error, pendingPermission, onPermis
 
   const onScroll = useCallback(() => {
     const el = scrollRef.current
-    if (!el || loadingRef.current || suppressScroll.current) return
+    if (!el || loadingRef.current || programmaticScroll.current) return
 
     const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
     setShowScrollDown(distFromBottom > SCROLL_UP_THRESHOLD)

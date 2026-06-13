@@ -18,57 +18,65 @@ export function AssistantMessage({ text, isStreaming, showActions }: Props) {
   const isNew = useRef(true)
   useEffect(() => { isNew.current = false }, [])
 
-  // Inject our own copy buttons into streamdown code blocks (observe DOM changes)
+  // Inject our own copy buttons into streamdown code blocks
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
+
+    function createCopyBtn(block: Element) {
+      const btn = document.createElement('button')
+      btn.className = 'cd-copy-btn'
+      btn.textContent = 'Copy'
+      btn.style.cssText = 'font-size:11px;color:var(--color-fg-subtle,#8b8b8b);' +
+        'background:none;border:none;cursor:pointer;padding:2px 6px;border-radius:4px;'
+      btn.onmouseenter = () => { btn.style.color = 'var(--color-fg-default,#e0e0e0)' }
+      btn.onmouseleave = () => { btn.style.color = 'var(--color-fg-subtle,#8b8b8b)' }
+      btn.onclick = async () => {
+        const codeEl = block.querySelector('.code-block-body code, pre code, code')
+        if (!codeEl) return
+        try {
+          await navigator.clipboard.writeText(codeEl.textContent ?? '')
+        } catch {
+          const ta = document.createElement('textarea')
+          ta.value = codeEl.textContent ?? ''
+          ta.style.cssText = 'position:fixed;left:-9999px;opacity:0'
+          document.body.appendChild(ta)
+          ta.select()
+          document.execCommand('copy')
+          document.body.removeChild(ta)
+        }
+        btn.textContent = 'Copied'
+        btn.style.color = '#16a34a'
+        setTimeout(() => {
+          btn.textContent = 'Copy'
+          btn.style.color = 'var(--color-fg-subtle,#8b8b8b)'
+        }, 2000)
+      }
+      return btn
+    }
 
     function injectButtons() {
       const blocks = container!.querySelectorAll('.code-block')
       blocks.forEach((block) => {
         if (block.querySelector('.cd-copy-btn')) return
         const header = block.querySelector('.code-block-header')
-        if (!header) return
-
-        const btn = document.createElement('button')
-        btn.className = 'cd-copy-btn'
-        btn.textContent = 'Copy'
-        btn.style.cssText = 'font-size:11px;color:var(--color-fg-subtle,#8b8b8b);' +
-          'background:none;border:none;cursor:pointer;padding:2px 6px;border-radius:4px;'
-        btn.onmouseenter = () => { btn.style.color = 'var(--color-fg-default,#e0e0e0)' }
-        btn.onmouseleave = () => { btn.style.color = 'var(--color-fg-subtle,#8b8b8b)' }
-        btn.onclick = async () => {
-          const codeEl = block.querySelector('.code-block-body code, pre code, code')
-          if (!codeEl) return
-          try {
-            await navigator.clipboard.writeText(codeEl.textContent ?? '')
-          } catch {
-            const ta = document.createElement('textarea')
-            ta.value = codeEl.textContent ?? ''
-            ta.style.cssText = 'position:fixed;left:-9999px;opacity:0'
-            document.body.appendChild(ta)
-            ta.select()
-            document.execCommand('copy')
-            document.body.removeChild(ta)
-          }
-          btn.textContent = 'Copied'
-          btn.style.color = '#16a34a'
-          setTimeout(() => {
-            btn.textContent = 'Copy'
-            btn.style.color = 'var(--color-fg-subtle,#8b8b8b)'
-          }, 2000)
+        if (header) {
+          header.appendChild(createCopyBtn(block))
         }
-        header.appendChild(btn)
       })
     }
 
-    // Run once immediately in case blocks already exist
-    injectButtons()
+    // Debounce to avoid excessive calls during rapid streaming
+    let timer: ReturnType<typeof setTimeout>
+    function debouncedInject() {
+      clearTimeout(timer)
+      timer = setTimeout(injectButtons, 50)
+    }
 
-    // Watch for new blocks being added by streamdown
-    const observer = new MutationObserver(() => injectButtons())
-    observer.observe(container, { childList: true, subtree: true })
-    return () => observer.disconnect()
+    injectButtons()
+    const observer = new MutationObserver(debouncedInject)
+    observer.observe(container, { childList: true, subtree: true, characterData: true })
+    return () => { observer.disconnect(); clearTimeout(timer) }
   }, [])
 
   return (
