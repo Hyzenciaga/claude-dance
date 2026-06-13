@@ -1,5 +1,6 @@
 import { Copy, Check } from 'lucide-react'
 import { useCopyToClipboard } from '../lib/useCopyToClipboard'
+import { useToast } from './Toast'
 
 type Props = {
   text: string
@@ -8,10 +9,14 @@ type Props = {
 
 export function CopyButton({ text, label }: Props) {
   const { copied, copy } = useCopyToClipboard()
+  const toast = useToast()
 
   return (
     <button
-      onClick={() => copy(text)}
+      onClick={() => {
+        copy(text)
+        toast('Copied to clipboard')
+      }}
       className="h-6 w-6 flex items-center justify-center rounded-md
                  text-fg-subtle hover:text-fg-default hover:bg-bg-hover
                  transition-colors"

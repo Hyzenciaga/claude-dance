@@ -1,87 +1,25 @@
-import { useState, useRef, useEffect } from 'react'
-import { Pencil, RotateCcw } from 'lucide-react'
+import { useRef, useEffect } from 'react'
+import { Copy, Pencil } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { useCopyToClipboard } from '../../lib/useCopyToClipboard'
+import { useToast } from '../Toast'
 
 type Props = {
   text: string
-  onRewind?: () => void
   onEditResend?: (text: string) => void
 }
 
-export function UserMessage({ text, onRewind, onEditResend }: Props) {
-  const [menuOpen, setMenuOpen] = useState(false)
-  const menuRef = useRef<HTMLDivElement>(null)
-  const hasActions = onRewind || onEditResend
+export function UserMessage({ text, onEditResend }: Props) {
+  const { copied, copy } = useCopyToClipboard()
+  const toast = useToast()
 
-  // Entrance animation
   const isNew = useRef(true)
   useEffect(() => { isNew.current = false }, [])
 
-  useEffect(() => {
-    if (!menuOpen) return
-    function onClickOutside(e: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setMenuOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', onClickOutside)
-    return () => document.removeEventListener('mousedown', onClickOutside)
-  }, [menuOpen])
-
   return (
     <div className={'px-6 py-2.5 group/user' + (isNew.current ? ' message-enter' : '')}>
-      <div className="mx-auto max-w-4xl flex items-start justify-end gap-1.5">
-        {/* Action menu anchor */}
-        {hasActions && (
-          <div className="relative mt-1.5 shrink-0" ref={menuRef}>
-            <button
-              onClick={() => setMenuOpen((o) => !o)}
-              className="h-6 w-6 flex items-center justify-center rounded-md
-                         text-fg-subtle hover:text-fg-default hover:bg-bg-active
-                         opacity-0 group-hover/user:opacity-100 transition-opacity"
-              title="Message actions"
-              aria-label="Message actions"
-            >
-              <Pencil size={11} strokeWidth={2} />
-            </button>
-
-            {menuOpen && (
-              <div className="absolute right-0 top-full mt-1 w-40 bg-bg-panel border border-line
-                              rounded-xl shadow-xl overflow-hidden z-50">
-                {onEditResend && (
-                  <button
-                    onClick={() => {
-                      setMenuOpen(false)
-                      onEditResend(text)
-                    }}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-[12px]
-                               text-fg-muted hover:bg-bg-hover hover:text-fg-default
-                               text-left transition-colors"
-                  >
-                    <Pencil size={12} className="text-fg-subtle shrink-0" />
-                    Edit &amp; resend
-                  </button>
-                )}
-                {onRewind && (
-                  <button
-                    onClick={() => {
-                      setMenuOpen(false)
-                      onRewind()
-                    }}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-[12px]
-                               text-fg-muted hover:bg-bg-hover hover:text-fg-default
-                               text-left transition-colors"
-                  >
-                    <RotateCcw size={12} className="text-fg-subtle shrink-0" />
-                    Revert files
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-
+      <div className="mx-auto max-w-4xl flex items-start justify-end">
         <div className="max-w-[85%] rounded-2xl rounded-tr-sm px-3.5 py-2
                         bg-bubble-user text-bubble-user-fg text-[13.5px]
                         leading-[1.55] shadow-sm user-markdown">
@@ -111,6 +49,38 @@ export function UserMessage({ text, onRewind, onEditResend }: Props) {
           >
             {text}
           </ReactMarkdown>
+        </div>
+      </div>
+
+      {/* Actions below message — hidden, show on hover */}
+      <div className="mx-auto max-w-4xl flex justify-end mt-1
+                      opacity-0 group-hover/user:opacity-100 transition-opacity">
+        <div className="flex items-center gap-0.5">
+          <button
+            onClick={() => {
+              copy(text)
+              toast('Copied to clipboard')
+            }}
+            className="h-6 flex items-center gap-1 px-1.5 rounded-md
+                       text-[11px] text-fg-subtle hover:text-fg-default hover:bg-bg-hover
+                       transition-colors"
+            title="Copy message"
+          >
+            <Copy size={11} strokeWidth={2} />
+            {copied ? <span className="text-green-600">Copied</span> : <span>Copy</span>}
+          </button>
+          {onEditResend && (
+            <button
+              onClick={() => onEditResend(text)}
+              className="h-6 flex items-center gap-1 px-1.5 rounded-md
+                         text-[11px] text-fg-subtle hover:text-fg-default hover:bg-bg-hover
+                         transition-colors"
+              title="Edit & resend"
+            >
+              <Pencil size={11} strokeWidth={2} />
+              <span>Edit</span>
+            </button>
+          )}
         </div>
       </div>
     </div>

@@ -13,7 +13,6 @@ type Props = {
 export function AssistantMessage({ text, isStreaming, showActions }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
 
-  // Track if this is a new message for entrance animation
   const isNew = useRef(true)
   useEffect(() => { isNew.current = false }, [])
 
@@ -46,7 +45,6 @@ export function AssistantMessage({ text, isStreaming, showActions }: Props) {
               strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
               em: ({ children }) => <em className="italic">{children}</em>,
               pre: ({ children }) => {
-                // Extract code and lang from the nested <code> element
                 const codeEl = children as React.ReactElement<{
                   className?: string
                   children?: string
@@ -89,7 +87,7 @@ export function AssistantMessage({ text, isStreaming, showActions }: Props) {
         </div>
       </div>
 
-      {/* Message actions bar */}
+      {/* Message actions bar — below bubble, hidden, show on hover */}
       {showActions && (
         <div className="mx-auto max-w-4xl flex justify-start mt-1">
           <MessageActions text={text} />

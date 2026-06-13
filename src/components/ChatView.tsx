@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from 'react'
-import { AlertCircle, CircleSlash, ArrowDown, Undo2 } from 'lucide-react'
+import { AlertCircle, CircleSlash, ArrowDown } from 'lucide-react'
 import { useEvents } from '../store/events'
 import { deriveMessages } from '../lib/derive'
 import { UserMessage } from './messages/UserMessage'
@@ -9,6 +9,7 @@ import { ThinkingIndicator } from './messages/ThinkingIndicator'
 import { PermissionDialog } from './PermissionDialog'
 import { AskUserDialog } from './AskUserDialog'
 import { AskUserAnswerCard } from './messages/AskUserAnswerCard'
+import { ToastProvider } from './Toast'
 import type { PermissionRequest, AskUserQuestionRequest } from '@shared/types'
 
 type Props = {
@@ -26,7 +27,7 @@ type Props = {
 const PAGE_SIZE = 40
 const SCROLL_UP_THRESHOLD = 300
 
-export function ChatView({ sessionId, status, error, pendingPermission, onPermissionRespond, pendingQuestion, onQuestionRespond, onRewind, onEditResend }: Props) {
+export function ChatView({ sessionId, status, error, pendingPermission, onPermissionRespond, pendingQuestion, onQuestionRespond, onRewind: _onRewind, onEditResend }: Props) {
   const events = useEvents((s) => s.eventsBySession[sessionId] ?? [])
   const allMessages = useMemo(() => deriveMessages(events), [events])
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -117,6 +118,7 @@ export function ChatView({ sessionId, status, error, pendingPermission, onPermis
   }
 
   return (
+    <ToastProvider>
     <div className="flex-1 flex flex-col min-h-0 relative">
       {status === 'error' && (
         <div className="flex items-center gap-2 px-6 py-2 bg-red-500/10 text-red-300/90
@@ -158,9 +160,6 @@ export function ChatView({ sessionId, status, error, pendingPermission, onPermis
                 if (m.kind === 'user') return (
                   <UserMessage
                     text={m.text}
-                    onRewind={status === 'idle' && m.messageId && onRewind
-                      ? () => onRewind(m.messageId)
-                      : undefined}
                     onEditResend={status === 'idle' && onEditResend
                       ? (t) => onEditResend(t)
                       : undefined}
@@ -211,20 +210,7 @@ export function ChatView({ sessionId, status, error, pendingPermission, onPermis
         )}
       </div>
       {showThinking && !pendingPermission && !pendingQuestion && <ThinkingIndicator />}
-      {onRewind && status === 'idle' && allMessages.length > 0 && (
-        <button
-          onClick={() => onRewind()}
-          className="absolute bottom-4 left-6 h-8 flex items-center gap-1.5 px-3
-                     rounded-full bg-bg-panel border border-line shadow-lg
-                     text-[11.5px] text-fg-muted hover:text-fg-default hover:bg-bg-hover
-                     transition-all z-10"
-          aria-label="Rewind files"
-          title="Revert file changes to before last message"
-        >
-          <Undo2 size={13} strokeWidth={2} />
-          <span>Rewind</span>
-        </button>
-      )}
+      {/* Rewind button hidden for now */}
       {showScrollDown && (
         <button
           onClick={scrollToBottom}
@@ -238,5 +224,6 @@ export function ChatView({ sessionId, status, error, pendingPermission, onPermis
         </button>
       )}
     </div>
+    </ToastProvider>
   )
 }

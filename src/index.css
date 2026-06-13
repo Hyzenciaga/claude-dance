@@ -173,3 +173,9 @@ html.dark .shiki-code span {
 .message-enter {
   animation: message-enter 200ms ease-out;
 }
+
+/* === Toast entrance === */
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
