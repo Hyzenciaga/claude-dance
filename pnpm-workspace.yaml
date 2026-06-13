@@ -1,0 +1,11 @@
+allowBuilds:
+  c: true
+  e: true
+  electron: true
+  electron-winstaller: true
+  esbuild: true
+  l: true
+  n: true
+  o: true
+  r: true
+  t: true

@@ -6,31 +6,30 @@ const day = 24 * 60 * 60 * 1000
 describe('groupSessionsByTime', () => {
   const now = Date.parse('2026-06-09T12:00:00.000Z')
 
-  it('classifies today', () => {
+  it('classifies recent (within 3 days)', () => {
     const sessions = [{ id: '1', lastMessageAt: now - 60_000 }]
     const groups = groupSessionsByTime(sessions, now)
-    expect(groups[0].bucket).toBe<Bucket>('today')
+    expect(groups[0].bucket).toBe<Bucket>('recent')
     expect(groups[0].sessions).toHaveLength(1)
   })
 
-  it('classifies yesterday', () => {
-    const yesterday = Date.parse('2026-06-08T20:00:00.000Z')
-    const groups = groupSessionsByTime([{ id: '1', lastMessageAt: yesterday }], now)
-    expect(groups.find((g) => g.bucket === 'yesterday')!.sessions).toHaveLength(1)
-  })
-
-  it('classifies this week', () => {
+  it('classifies week (3-7 days)', () => {
     const groups = groupSessionsByTime([{ id: '1', lastMessageAt: now - 4 * day }], now)
-    expect(groups.find((g) => g.bucket === 'thisWeek')!.sessions).toHaveLength(1)
+    expect(groups.find((g) => g.bucket === 'week')!.sessions).toHaveLength(1)
   })
 
-  it('classifies earlier', () => {
-    const groups = groupSessionsByTime([{ id: '1', lastMessageAt: now - 30 * day }], now)
+  it('classifies month (7-30 days)', () => {
+    const groups = groupSessionsByTime([{ id: '1', lastMessageAt: now - 14 * day }], now)
+    expect(groups.find((g) => g.bucket === 'month')!.sessions).toHaveLength(1)
+  })
+
+  it('classifies earlier (>30 days)', () => {
+    const groups = groupSessionsByTime([{ id: '1', lastMessageAt: now - 31 * day }], now)
     expect(groups.find((g) => g.bucket === 'earlier')!.sessions).toHaveLength(1)
   })
 
   it('omits empty buckets', () => {
     const groups = groupSessionsByTime([{ id: '1', lastMessageAt: now }], now)
-    expect(groups.map((g) => g.bucket)).toEqual(['today'])
+    expect(groups.map((g) => g.bucket)).toEqual(['recent'])
   })
 })
