@@ -33,10 +33,12 @@ export function ChatView({ sessionId, status, error, pendingPermission, onPermis
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
   const [showScrollDown, setShowScrollDown] = useState(false)
   const loadingRef = useRef(false)
+  const seenKeys = useRef(new Set<string>())
 
   const isInitialScroll = useRef(true)
 
   useEffect(() => {
+    seenKeys.current.clear()
     isInitialScroll.current = true
     setVisibleCount(PAGE_SIZE)
     setShowScrollDown(false)
@@ -147,6 +149,8 @@ export function ChatView({ sessionId, status, error, pendingPermission, onPermis
               const prevMsg = messages[idx - 1]
               const prevSubagentId = prevMsg && 'subagent' in prevMsg ? prevMsg.subagent?.parentToolUseId : undefined
               const isFirstSubagent = subagent && subagent.parentToolUseId !== prevSubagentId
+              const isNew = !seenKeys.current.has(m.key)
+              if (isNew) seenKeys.current.add(m.key)
               const content = (() => {
                 if (m.kind === 'user') return (
                   <UserMessage
@@ -159,14 +163,23 @@ export function ChatView({ sessionId, status, error, pendingPermission, onPermis
                       : undefined}
                   />
                 )
-                if (m.kind === 'assistant') return <AssistantMessage text={m.text} />
+                if (m.kind === 'assistant') {
+                  const isLast = idx === messages.length - 1
+                  return (
+                    <AssistantMessage
+                      text={m.text}
+                      isStreaming={isLast && status === 'running'}
+                      showActions={status === 'idle'}
+                    />
+                  )
+                }
                 if (m.kind === 'askUserAnswer') return <AskUserAnswerCard pairs={m.pairs} response={m.response} />
                 return <ToolUseCard tool={m.tool} input={m.input} />
               })()
 
               if (subagent) {
                 return (
-                  <div key={m.key} className="relative">
+                  <div key={m.key} className={'relative' + (isNew ? ' message-enter' : '')}>
                     <div className="absolute top-0 bottom-0 left-[22px] w-0.5 bg-accent/30" />
                     {isFirstSubagent && (
                       <div className="px-6 pt-1.5 pb-0.5">
@@ -183,7 +196,7 @@ export function ChatView({ sessionId, status, error, pendingPermission, onPermis
                 )
               }
 
-              return <div key={m.key}>{content}</div>
+              return <div key={m.key} className={isNew ? 'message-enter' : ''}>{content}</div>
             })}
             {pendingPermission && onPermissionRespond && (
               <PermissionDialog request={pendingPermission} onRespond={onPermissionRespond} />
