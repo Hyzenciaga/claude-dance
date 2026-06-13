@@ -3,7 +3,6 @@ import { Copy, Pencil } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { useCopyToClipboard } from '../../lib/useCopyToClipboard'
-import { useToast } from '../Toast'
 
 type Props = {
   text: string
@@ -12,7 +11,6 @@ type Props = {
 
 export function UserMessage({ text, onEditResend }: Props) {
   const { copied, copy } = useCopyToClipboard()
-  const toast = useToast()
 
   const isNew = useRef(true)
   useEffect(() => { isNew.current = false }, [])
@@ -57,10 +55,7 @@ export function UserMessage({ text, onEditResend }: Props) {
                       opacity-0 group-hover/user:opacity-100 transition-opacity">
         <div className="flex items-center gap-0.5">
           <button
-            onClick={() => {
-              copy(text)
-              toast('Copied to clipboard')
-            }}
+            onClick={() => copy(text)}
             className="h-6 flex items-center gap-1 px-1.5 rounded-md
                        text-[11px] text-fg-subtle hover:text-fg-default hover:bg-bg-hover
                        transition-colors"

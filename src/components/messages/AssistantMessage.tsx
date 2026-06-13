@@ -1,8 +1,11 @@
 import { useRef, useEffect } from 'react'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
-import { CodeBlock } from '../CodeBlock'
+import { Streamdown } from 'streamdown'
+import { createCodePlugin } from '@streamdown/code'
 import { MessageActions } from '../MessageActions'
+
+const codePlugin = createCodePlugin({
+  themes: ['github-light', 'github-dark'],
+})
 
 type Props = {
   text: string
@@ -11,8 +14,6 @@ type Props = {
 }
 
 export function AssistantMessage({ text, isStreaming, showActions }: Props) {
-  const containerRef = useRef<HTMLDivElement>(null)
-
   const isNew = useRef(true)
   useEffect(() => { isNew.current = false }, [])
 
@@ -20,15 +21,18 @@ export function AssistantMessage({ text, isStreaming, showActions }: Props) {
     <div className={'px-6 py-2.5 group/msg' + (isNew.current ? ' message-enter' : '')}>
       <div className="mx-auto max-w-4xl flex justify-start">
         <div
-          ref={containerRef}
           className={'w-full rounded-2xl rounded-tl-sm px-3.5 py-2 ' +
                      'bg-bubble-assistant border border-bubble-assistant-border ' +
                      'text-fg-default text-[13.5px] leading-[1.6] shadow-sm ' +
-                     'markdown overflow-hidden' +
-                     (isStreaming ? ' streaming-cursor' : '')}
+                     'markdown overflow-hidden'}
         >
-          <ReactMarkdown
-            remarkPlugins={[remarkGfm]}
+          <Streamdown
+            mode={isStreaming ? 'streaming' : 'static'}
+            plugins={{ code: codePlugin }}
+            shikiTheme={['github-light', 'github-dark']}
+            lineNumbers
+            controls={false}
+            caret={isStreaming ? 'block' : undefined}
             components={{
               p: ({ children }) => <p className="my-1.5 first:mt-0 last:mb-0">{children}</p>,
               ul: ({ children }) => <ul className="my-2 ml-4 list-disc space-y-1">{children}</ul>,
@@ -44,27 +48,12 @@ export function AssistantMessage({ text, isStreaming, showActions }: Props) {
               ),
               strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
               em: ({ children }) => <em className="italic">{children}</em>,
-              pre: ({ children }) => {
-                const codeEl = children as React.ReactElement<{
-                  className?: string
-                  children?: string
-                }>
-                const className = codeEl?.props?.className ?? ''
-                const code = String(codeEl?.props?.children ?? '').replace(/\n$/, '')
-                const lang = className.replace('language-', '') || ''
-                if (code) return <CodeBlock code={code} lang={lang} />
-                return <pre>{children}</pre>
-              },
-              code: ({ className, children }) => {
-                const isBlock = /language-/.test(className ?? '')
-                if (isBlock) return <code>{children}</code>
-                return (
-                  <code className="font-mono text-[12.5px] px-1 py-0.5 rounded
-                                   bg-bg-hover text-fg-default border border-line/60">
-                    {children}
-                  </code>
-                )
-              },
+              inlineCode: ({ children }) => (
+                <code className="font-mono text-[12.5px] px-1 py-0.5 rounded
+                                 bg-bg-hover text-fg-default border border-line/60">
+                  {children}
+                </code>
+              ),
               blockquote: ({ children }) => (
                 <blockquote className="my-2 pl-3 border-l-2 border-line-strong text-fg-muted">
                   {children}
@@ -83,11 +72,11 @@ export function AssistantMessage({ text, isStreaming, showActions }: Props) {
             }}
           >
             {text}
-          </ReactMarkdown>
+          </Streamdown>
         </div>
       </div>
 
-      {/* Message actions bar — below bubble, hidden, show on hover */}
+      {/* Message actions — hidden, show on hover */}
       {showActions && (
         <div className="mx-auto max-w-4xl flex justify-start mt-1">
           <MessageActions text={text} />
