@@ -31,7 +31,7 @@ export function AssistantMessage({ text, isStreaming, showActions }: Props) {
             plugins={{ code: codePlugin }}
             shikiTheme={['github-light', 'github-dark']}
             lineNumbers
-            controls={false}
+            controls={{ code: { copy: true }, table: false, mermaid: false }}
             caret={isStreaming ? 'block' : undefined}
             components={{
               p: ({ children }) => <p className="my-1.5 first:mt-0 last:mb-0">{children}</p>,
