@@ -105,7 +105,7 @@ ClaudeDance, Claude Code desktop client, Claude Code GUI, Claude Code Electron a
 ## Requirements 前置依赖
 
 - **Node.js** >= 18（推荐 22+）
-- **npm**（随 Node 自带）
+- **pnpm**（随 Node 自带）
 - **Claude Code CLI**（`claude` 命令在 PATH 上）- [安装指南](https://docs.anthropic.com/en/docs/claude-code)
 
 ## Installation 安装
@@ -113,13 +113,13 @@ ClaudeDance, Claude Code desktop client, Claude Code GUI, Claude Code Electron a
 ```bash
 git clone <repo-url> ClaudeDance
 cd ClaudeDance
-npm install
+pnpm install
 ```
 
 ## Development 开发
 
 ```bash
-npm run dev
+pnpm run dev
 ```
 
 Electron 窗口会自动打开，Vite HMR 会在前端代码保存后热更新，主进程代码修改后需要重启开发服务。
@@ -129,27 +129,27 @@ The Electron window opens automatically, Vite HMR updates renderer changes on sa
 
 | Command 命令 | Description 说明 |
 |------|------|
-| `npm run dev` | 启动开发模式（Electron + Vite HMR） / Start development mode with Electron + Vite HMR |
-| `npm run build` | 构建生产版本到 `out/` / Build production files into `out/` |
-| `npm run clean` | 清理构建产物（`out/`、`release/`、`.vite/`） / Clean build artifacts |
-| `npm start` | 预览已构建的生产版本 / Preview the built production app |
-| `npm test` | 跑所有测试（Vitest） / Run all tests with Vitest |
-| `npm run test:watch` | 测试 watch 模式 / Run tests in watch mode |
-| `npm run typecheck` | TypeScript 类型检查 / Run TypeScript type checks |
-| `npm run dist` | 构建并打包 macOS dmg / Build and package a macOS dmg |
-| `npm run dist:dir` | 构建并打包为 .app 目录 / Build and package as an unpacked .app directory |
+| `pnpm run dev` | 启动开发模式（Electron + Vite HMR） / Start development mode with Electron + Vite HMR |
+| `pnpm run build` | 构建生产版本到 `out/` / Build production files into `out/` |
+| `pnpm run clean` | 清理构建产物（`out/`、`release/`、`.vite/`） / Clean build artifacts |
+| `pnpm start` | 预览已构建的生产版本 / Preview the built production app |
+| `pnpm test` | 跑所有测试（Vitest） / Run all tests with Vitest |
+| `pnpm run test:watch` | 测试 watch 模式 / Run tests in watch mode |
+| `pnpm run typecheck` | TypeScript 类型检查 / Run TypeScript type checks |
+| `pnpm run dist` | 构建并打包 macOS dmg / Build and package a macOS dmg |
+| `pnpm run dist:dir` | 构建并打包为 .app 目录 / Build and package as an unpacked .app directory |
 
 ## Packaging 打包
 
 ```bash
 # 完整 dmg（需要能访问 GitHub 下载 electron 二进制）
-npm run dist
+pnpm run dist
 
 # 只出 .app（不需要额外下载，适合内网）
-npm run dist:dir
+pnpm run dist:dir
 
 # 只打 arm64
-npm run dist -- --mac --arm64
+pnpm run dist -- --mac --arm64
 ```
 
 产出在 `release/` 目录。
