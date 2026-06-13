@@ -15,7 +15,7 @@ describe('deriveMessages (MVP A-tier)', () => {
       ev({ type: 'user', message: { role: 'user', content: 'hello' } }),
     ])
     expect(result).toEqual<DerivedMessage[]>([
-      { kind: 'user', text: 'hello', key: '0' },
+      { kind: 'user', text: 'hello', key: 'msg-0' },
     ])
   })
 

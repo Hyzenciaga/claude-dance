@@ -30,6 +30,7 @@ function extractSubagent(raw: Record<string, unknown>): SubagentInfo | undefined
 
 export function deriveMessages(events: RawEvent[]): DerivedMessage[] {
   const out: DerivedMessage[] = []
+  let msgCounter = 0
   let i = 0
   while (i < events.length) {
     const e = events[i]
@@ -41,7 +42,7 @@ export function deriveMessages(events: RawEvent[]): DerivedMessage[] {
       if (message) {
         const content = message['content']
         if (typeof content === 'string') {
-          if (content.length > 0) out.push({ kind: 'user', text: content, key: String(i), messageId: uuid })
+          if (content.length > 0) out.push({ kind: 'user', text: content, key: `msg-${msgCounter++}`, messageId: uuid })
         } else if (Array.isArray(content)) {
           const texts: string[] = []
           for (const block of content) {
@@ -52,7 +53,7 @@ export function deriveMessages(events: RawEvent[]): DerivedMessage[] {
             }
           }
           if (texts.length > 0) {
-            out.push({ kind: 'user', text: texts.join('\n'), key: String(i), messageId: uuid })
+            out.push({ kind: 'user', text: texts.join('\n'), key: `msg-${msgCounter++}`, messageId: uuid })
           }
         }
       }
@@ -68,6 +69,7 @@ export function deriveMessages(events: RawEvent[]): DerivedMessage[] {
       const last = events[lastIdx]
       const raw = last.raw as Record<string, unknown>
       const subagent = extractSubagent(raw)
+      const msgKey = `msg-${msgCounter++}`
       const message = raw['message'] as Record<string, unknown> | undefined
       if (message) {
         const content = message['content']
@@ -75,18 +77,17 @@ export function deriveMessages(events: RawEvent[]): DerivedMessage[] {
           content.forEach((block, bIdx) => {
             if (!block || typeof block !== 'object') return
             const type = (block as Record<string, unknown>)['type']
-            const key = `${lastIdx}-${bIdx}`
             if (type === 'text' && typeof (block as Record<string, unknown>)['text'] === 'string') {
               const text = (block as Record<string, unknown>)['text'] as string
-              if (text.length > 0) out.push({ kind: 'assistant', text, key, subagent })
+              if (text.length > 0) out.push({ kind: 'assistant', text, key: `${msgKey}-${bIdx}`, subagent })
             } else if (type === 'tool_use') {
               const b = block as Record<string, unknown>
               out.push({
                 kind: 'toolUse',
                 tool: typeof b['name'] === 'string' ? (b['name'] as string) : 'Tool',
                 input: b['input'] ?? null,
-                id: typeof b['id'] === 'string' ? (b['id'] as string) : key,
-                key,
+                id: typeof b['id'] === 'string' ? (b['id'] as string) : `${msgKey}-${bIdx}`,
+                key: `${msgKey}-${bIdx}`,
                 subagent,
               })
             }
@@ -107,7 +108,7 @@ export function deriveMessages(events: RawEvent[]): DerivedMessage[] {
           }))
         : []
       const response = typeof raw['response'] === 'string' ? raw['response'] : undefined
-      out.push({ kind: 'askUserAnswer', pairs, response, key: String(i) })
+      out.push({ kind: 'askUserAnswer', pairs, response, key: `msg-${msgCounter++}` })
       i++
       continue
     }
