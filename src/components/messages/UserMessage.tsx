@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Pencil, RotateCcw } from 'lucide-react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 
 type Props = {
   text: string
@@ -11,6 +13,10 @@ export function UserMessage({ text, onRewind, onEditResend }: Props) {
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
   const hasActions = onRewind || onEditResend
+
+  // Entrance animation
+  const isNew = useRef(true)
+  useEffect(() => { isNew.current = false }, [])
 
   useEffect(() => {
     if (!menuOpen) return
@@ -24,7 +30,7 @@ export function UserMessage({ text, onRewind, onEditResend }: Props) {
   }, [menuOpen])
 
   return (
-    <div className="px-6 py-2.5 group/user">
+    <div className={'px-6 py-2.5 group/user' + (isNew.current ? ' message-enter' : '')}>
       <div className="mx-auto max-w-4xl flex items-start justify-end gap-1.5">
         {/* Action menu anchor */}
         {hasActions && (
@@ -78,8 +84,33 @@ export function UserMessage({ text, onRewind, onEditResend }: Props) {
 
         <div className="max-w-[85%] rounded-2xl rounded-tr-sm px-3.5 py-2
                         bg-bubble-user text-bubble-user-fg text-[13.5px]
-                        leading-[1.55] whitespace-pre-wrap shadow-sm">
-          {text}
+                        leading-[1.55] shadow-sm user-markdown">
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            components={{
+              p: ({ children }) => <p className="my-0.5 first:mt-0 last:mb-0">{children}</p>,
+              code: ({ className, children }) => {
+                const isBlock = /language-/.test(className ?? '')
+                if (isBlock) return <code className="block font-mono text-[12px]">{children}</code>
+                return (
+                  <code className="font-mono text-[12px] px-1 py-0.5 rounded
+                                   bg-white/10 text-inherit">
+                    {children}
+                  </code>
+                )
+              },
+              a: ({ href, children }) => (
+                <a href={href} className="underline decoration-white/30 hover:decoration-white/60"
+                   target="_blank" rel="noreferrer">
+                  {children}
+                </a>
+              ),
+              strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+              em: ({ children }) => <em className="italic">{children}</em>,
+            }}
+          >
+            {text}
+          </ReactMarkdown>
         </div>
       </div>
     </div>
