@@ -149,8 +149,11 @@ export function ChatView({ sessionId, status, error, pendingPermission, onPermis
               const prevMsg = messages[idx - 1]
               const prevSubagentId = prevMsg && 'subagent' in prevMsg ? prevMsg.subagent?.parentToolUseId : undefined
               const isFirstSubagent = subagent && subagent.parentToolUseId !== prevSubagentId
-              const isNew = !seenKeys.current.has(m.key)
-              if (isNew) seenKeys.current.add(m.key)
+              const stableKey = m.kind === 'assistant' || m.kind === 'toolUse'
+                ? m.kind + ':' + (m.kind === 'assistant' ? m.text.slice(0, 80) : m.id)
+                : m.key
+              const isNew = !seenKeys.current.has(stableKey)
+              if (isNew) seenKeys.current.add(stableKey)
               const content = (() => {
                 if (m.kind === 'user') return (
                   <UserMessage
